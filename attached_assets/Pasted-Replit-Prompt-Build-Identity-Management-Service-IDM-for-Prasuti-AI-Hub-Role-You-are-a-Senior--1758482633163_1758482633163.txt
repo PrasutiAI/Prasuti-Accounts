@@ -1,0 +1,116 @@
+Replit Prompt — Build Identity Management Service (IDM) for Prasuti.AI Hub
+Role:
+You are a Senior Software Engineer (or a small dev team) building a production-ready, independent Identity & Access Management (IDM) microservice for the Prasuti.AI microservices ecosystem. Deliver a modular, testable, secure microservice that is discoverable by the API Gateway and other services.
+________________________________________
+Goal / Summary
+Build an independent IDM microservice (Node.js + TypeScript + NestJS recommended) that implements registration, authentication, RBAC/ABAC, SSO hooks, MFA, social login connectors, and machine-to-machine tokens. The service must have its own Postgres schema and be discoverable (Consul OR Kubernetes), follow security best-practices (RS256 JWT + JWKS), include observability, and be Docker/Kubernetes ready.
+________________________________________
+Objectives — What to deliver
+1.	A standalone microservice implementing:
+o	User registration, email verification, password reset
+o	Login + token issuance (short-lived access JWT + refresh token)
+o	RBAC + ABAC policy hooks
+o	SSO/OAuth2 connector example (Google)
+o	MFA (TOTP + backup codes)
+o	Machine-to-machine flows (client_credentials, API keys)
+2.	Independent Postgres schema + DB migrations
+3.	RS256-signed JWT issuance, JWKS endpoint, key rotation skeleton
+4.	OpenAPI (Swagger) docs and a Postman collection for core flows
+5.	Dockerfile and docker-compose.yml for local dev; Kubernetes manifests example
+6.	Unit & integration tests (Jest + supertest)
+7.	Logging + audit hooks + Prometheus metrics endpoint
+8.	README with run/test/deploy instructions and env variables
+________________________________________
+Non-Functional Requirements
+•	Domain-driven: IDM owns only auth & identity concerns.
+•	Stateless: Use JWTs; 
+•	Discoverable: Register with Consul or expose K8s metadata for API Gateway discovery.
+•	Security-first: RS256 JWT, JWKS, mTLS examples for service-to-service, key rotation skeleton, encryption at rest for PII.
+•	Observability: /health, /ready, /metrics, and structured logs.
+•	Privacy: Minimal PII in logs; PII encrypted at rest.
+________________________________________
+Tech-Stack (recommended)
+•	Node.js + TypeScript + NestJS (preferred)
+•	PostgreSQL (primary
+•	Consul (service registry) OR Kubernetes Service discovery
+•	Prometheus metrics; pino/winston structured logging
+•	Jest + supertest for tests
+•	Docker + docker-compose; Kubernetes manifests example
+•	Optional: Vault or KMS for secrets in README notes
+________________________________________
+Acceptance Criteria (must pass)
+•	POST /auth/register — registers user; returns verificationSent flag
+•	POST /auth/login — returns RS256-signed accessToken + refreshToken
+•	GET /.well-known/jwks.json — serves JWKS
+•	POST /oauth/token — supports password, refresh_token, client_credentials
+•	RBAC enforcement example: GET /admin/users accessible only to Admin role
+•	Service registers with Consul if CONSUL_ADDR present or is K8s-discoverable
+•	docker-compose up --build runs the service + Postgres + Redis
+•	Unit + integration tests pass (npm test)
+•	README explains how to run, test, migrate DB, create admin user, rotate keys
+________________________________________
+Minimal OpenAPI Endpoints (implement at least these)
+•	POST /auth/register — { email, password, name, role }
+•	POST /auth/verify — { token }
+•	POST /auth/login — { email, password, mfaCode? } → { accessToken, refreshToken }
+•	POST /auth/logout — { refreshToken }
+•	POST /oauth/token — grant_type=password|refresh_token|client_credentials
+•	GET /.well-known/jwks.json
+•	GET /users/:id
+•	GET /admin/users
+•	POST /clients — register machine client
+•	GET /health, /ready, /metrics, /openapi.json
+________________________________________
+Example DB Schema (core tables; provide migrations)
+•	users (id uuid PK, email unique, password_hash, name, role_id, is_verified, created_at, pii_encrypted)
+•	roles (id, name)
+•	permissions (id, name)
+•	role_permissions (role_id, permission_id)
+•	clients (id, client_id unique, client_secret_hash, grant_types, scopes)
+•	refresh_tokens (id, user_id, token_hash, revoked, expires_at)
+•	jwks_keys (kid PK, public_key, private_key_encrypted, created_at, expires_at, active)
+•	audit_logs (id, actor_id, action, meta jsonb, created_at)
+________________________________________
+Security & Operational Notes (must include)
+•	Sign JWTs with RS256 and include kid header; expose JWKS for other services.
+•	Encrypt private keys at rest; provide a key-rotation endpoint or script.
+•	Use short-lived access tokens (5–15 mins) + refresh tokens; use DB  to revoke refresh tokens.
+•	Store API keys/client secrets hashed.
+•	Provide an admin-only route to rotate keys and revoke tokens.
+•	Implement structured audit logs for security-sensitive events.
+________________________________________
+CI / Dev / Deployment
+•	Multi-stage Dockerfile; docker-compose.yml for local dev (includes Postgres + Redis + optional Consul).
+•	Provide k8s/deployment.yaml, k8s/service.yaml, and k8s/secret-example.yaml.
+•	Example GitHub Actions: lint → test → build image.
+•	README: quickstart, migrations, create-admin script, run tests, rotate keys.
+________________________________________
+Tests
+•	Unit tests: service/business logic and policy engine
+•	Integration tests: token flows, RBAC, refresh + revocation (use docker-compose test DB or testcontainers)
+•	Provide sample test commands: npm run test:unit, npm run test:integration
+________________________________________
+Environment Variables (example)
+NODE_ENV=development
+PORT=3000
+DATABASE_URL=postgres://user:pass@db:5432/idm
+JWT_ISSUER=https://idm.prasuti.ai
+JWT_AUD=prasuti-services
+JWT_ACCESS_TTL=15m
+JWT_REFRESH_TTL=30d
+JWKS_PRIVATE_KEY_PATH=/secrets/idm_private.pem
+JWKS_KEY_ID=key-2025-09-22
+CONSUL_ADDR=http://consul:8500
+ENCRYPTION_MASTER_KEY=change-me
+PROMETHEUS_ENABLED=true
+________________________________________
+Deliverables 
+Full source code (NestJS recommended) with modular structure: auth, users, roles, clients, keys, mfa, audit, metrics, health.
+1.	migrations/ or migration scripts (SQL or TypeORM/Prisma migrations).
+2.	Dockerfile, docker-compose.yml, k8s/ manifests.
+3.	openapi.json (Swagger) + Postman collection.
+4.	Unit & integration tests.
+5.	README with quickstart, env vars, migrations, how to create admin, key rotation steps.
+6.	Scripts: create-admin, rotate-keys, migrate-db.
+________________________________________
+
