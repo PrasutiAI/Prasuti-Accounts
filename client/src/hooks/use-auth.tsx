@@ -148,11 +148,3 @@ export function useAuth() {
   return context;
 }
 
-// Update App.tsx to use AuthProvider
-export default function WrappedApp() {
-  return (
-    <AuthProvider>
-      <App />
-    </AuthProvider>
-  );
-}
