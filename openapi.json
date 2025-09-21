@@ -1,0 +1,1262 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Prasuti.AI Identity Management Service API",
+    "description": "Production-ready Identity & Access Management microservice with JWT authentication, RBAC, MFA, and comprehensive audit logging.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Prasuti.AI Team",
+      "email": "support@prasuti.ai",
+      "url": "https://prasuti.ai"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://idm.prasuti.ai",
+      "description": "Production server"
+    },
+    {
+      "url": "https://staging-idm.prasuti.ai", 
+      "description": "Staging server"
+    },
+    {
+      "url": "http://localhost:5000",
+      "description": "Development server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Authentication",
+      "description": "User authentication and token management"
+    },
+    {
+      "name": "Users",
+      "description": "User management operations"
+    },
+    {
+      "name": "Admin",
+      "description": "Administrative operations"
+    },
+    {
+      "name": "MFA",
+      "description": "Multi-factor authentication"
+    },
+    {
+      "name": "OAuth2",
+      "description": "OAuth2 token endpoints"
+    },
+    {
+      "name": "Clients",
+      "description": "API client management"
+    },
+    {
+      "name": "Audit",
+      "description": "Audit logs and security events"
+    },
+    {
+      "name": "System",
+      "description": "System health and monitoring"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Health check",
+        "description": "Returns the health status of the service",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {"type": "string", "example": "healthy"},
+                    "timestamp": {"type": "string", "format": "date-time"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Readiness check",
+        "description": "Returns whether the service is ready to accept requests",
+        "responses": {
+          "200": {
+            "description": "Service is ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {"type": "string", "example": "ready"},
+                    "timestamp": {"type": "string", "format": "date-time"}
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service is not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {"type": "string", "example": "not ready"},
+                    "error": {"type": "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Prometheus metrics",
+        "description": "Returns Prometheus-formatted metrics",
+        "responses": {
+          "200": {
+            "description": "Metrics data",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/.well-known/jwks.json": {
+      "get": {
+        "tags": ["System"],
+        "summary": "JSON Web Key Set",
+        "description": "Returns the public keys used for JWT signature verification",
+        "responses": {
+          "200": {
+            "description": "JWKS response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JWKSResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Register new user",
+        "description": "Registers a new user account with email verification",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User registered successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {"type": "string"},
+                    "verificationSent": {"type": "boolean"}
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "User login",
+        "description": "Authenticates user and returns JWT tokens",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "User logout",
+        "description": "Revokes refresh token and logs out user",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refreshToken": {"type": "string"}
+                },
+                "required": ["refreshToken"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Logout successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {"type": "string"}
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/auth/verify": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Verify email",
+        "description": "Verifies user email with verification token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {"type": "string"}
+                },
+                "required": ["token"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Email verified successfully"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/api/auth/forgot-password": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Request password reset",
+        "description": "Sends password reset email to user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {"type": "string", "format": "email"}
+                },
+                "required": ["email"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password reset email sent"
+          }
+        }
+      }
+    },
+    "/api/auth/reset-password": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Reset password",
+        "description": "Resets user password with reset token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {"type": "string"},
+                  "password": {"type": "string", "minLength": 8}
+                },
+                "required": ["token", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password reset successfully"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/api/oauth/token": {
+      "post": {
+        "tags": ["OAuth2"],
+        "summary": "OAuth2 token endpoint",
+        "description": "Supports multiple grant types: password, refresh_token, client_credentials",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuth2TokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token issued successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuth2TokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/users": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "List users",
+        "description": "Returns paginated list of users (admin only)",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {"type": "integer", "minimum": 1, "default": 1}
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 50}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Users list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Users"],
+        "summary": "Create user",
+        "description": "Creates a new user (admin only)",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/users/{id}": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "Get user",
+        "description": "Returns user details (own profile or admin)",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Users"],
+        "summary": "Update user",
+        "description": "Updates user details (own profile or admin)",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Users"],
+        "summary": "Delete user",
+        "description": "Deletes user account (admin only)",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User deleted successfully"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/admin/users": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Admin users list",
+        "description": "Returns paginated list of users with admin privileges",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {"type": "integer", "minimum": 1, "default": 1}
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 50}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Users list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/admin/stats": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "System statistics",
+        "description": "Returns system and user statistics (admin only)",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "System statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStats"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/admin/keys/rotate": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Rotate JWT keys",
+        "description": "Generates new JWT signing keys and deactivates old ones (admin only)",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "Keys rotated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {"type": "string"},
+                    "kid": {"type": "string"}
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/mfa/setup": {
+      "get": {
+        "tags": ["MFA"],
+        "summary": "Setup MFA",
+        "description": "Generates MFA secret and QR code for user",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "MFA setup data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MFASetupResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/mfa/enable": {
+      "post": {
+        "tags": ["MFA"],
+        "summary": "Enable MFA",
+        "description": "Enables MFA for user after verification",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mfaCode": {"type": "string", "minLength": 6, "maxLength": 6}
+                },
+                "required": ["mfaCode"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "MFA enabled successfully"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/mfa/disable": {
+      "post": {
+        "tags": ["MFA"],
+        "summary": "Disable MFA",
+        "description": "Disables MFA for user after verification",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mfaCode": {"type": "string", "minLength": 6, "maxLength": 6}
+                },
+                "required": ["mfaCode"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "MFA disabled successfully"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/mfa/status": {
+      "get": {
+        "tags": ["MFA"],
+        "summary": "MFA status",
+        "description": "Returns user MFA status and backup codes count",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "MFA status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MFAStatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/clients": {
+      "get": {
+        "tags": ["Clients"],
+        "summary": "List API clients",
+        "description": "Returns list of API clients (admin/developer only)",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "API clients list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/APIClient"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Clients"],
+        "summary": "Create API client",
+        "description": "Creates new API client for machine-to-machine authentication",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClientRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "API client created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {"$ref": "#/components/schemas/APIClient"},
+                    {
+                      "type": "object",
+                      "properties": {
+                        "clientSecret": {"type": "string", "description": "Client secret (only returned once)"}
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/audit": {
+      "get": {
+        "tags": ["Audit"],
+        "summary": "List audit logs",
+        "description": "Returns paginated audit logs (admin only)",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {"type": "integer", "minimum": 1, "default": 1}
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 50}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit logs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditLogsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/audit/security-events": {
+      "get": {
+        "tags": ["Audit"],
+        "summary": "Security events",
+        "description": "Returns recent security events (admin only)",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "Security events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SecurityEvent"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "RegisterRequest": {
+        "type": "object",
+        "properties": {
+          "email": {"type": "string", "format": "email"},
+          "password": {"type": "string", "minLength": 8},
+          "name": {"type": "string", "minLength": 1},
+          "role": {"type": "string", "enum": ["admin", "developer", "user", "guest"], "default": "user"}
+        },
+        "required": ["email", "password", "name"]
+      },
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "email": {"type": "string", "format": "email"},
+          "password": {"type": "string"},
+          "mfaCode": {"type": "string", "minLength": 6, "maxLength": 6}
+        },
+        "required": ["email", "password"]
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "user": {"$ref": "#/components/schemas/User"},
+          "accessToken": {"type": "string"},
+          "refreshToken": {"type": "string"}
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "email": {"type": "string", "format": "email"},
+          "name": {"type": "string"},
+          "role": {"type": "string", "enum": ["admin", "developer", "user", "guest"]},
+          "status": {"type": "string", "enum": ["active", "inactive", "pending", "blocked"]},
+          "isVerified": {"type": "boolean"},
+          "mfaEnabled": {"type": "boolean"},
+          "lastLogin": {"type": "string", "format": "date-time", "nullable": true},
+          "createdAt": {"type": "string", "format": "date-time"},
+          "updatedAt": {"type": "string", "format": "date-time"}
+        }
+      },
+      "CreateUserRequest": {
+        "type": "object",
+        "properties": {
+          "email": {"type": "string", "format": "email"},
+          "password": {"type": "string", "minLength": 8},
+          "name": {"type": "string", "minLength": 1},
+          "role": {"type": "string", "enum": ["admin", "developer", "user", "guest"]},
+          "status": {"type": "string", "enum": ["active", "inactive", "pending", "blocked"]},
+          "sendWelcomeEmail": {"type": "boolean", "default": true},
+          "requireMfa": {"type": "boolean", "default": false}
+        },
+        "required": ["email", "password", "name"]
+      },
+      "UpdateUserRequest": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "role": {"type": "string", "enum": ["admin", "developer", "user", "guest"]},
+          "status": {"type": "string", "enum": ["active", "inactive", "pending", "blocked"]}
+        }
+      },
+      "UsersListResponse": {
+        "type": "object",
+        "properties": {
+          "users": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/User"}
+          },
+          "total": {"type": "integer"},
+          "pages": {"type": "integer"}
+        }
+      },
+      "OAuth2TokenRequest": {
+        "type": "object",
+        "properties": {
+          "grant_type": {"type": "string", "enum": ["password", "refresh_token", "client_credentials"]},
+          "username": {"type": "string"},
+          "password": {"type": "string"},
+          "refresh_token": {"type": "string"},
+          "client_id": {"type": "string"},
+          "client_secret": {"type": "string"},
+          "scope": {"type": "string"}
+        },
+        "required": ["grant_type"]
+      },
+      "OAuth2TokenResponse": {
+        "type": "object",
+        "properties": {
+          "access_token": {"type": "string"},
+          "refresh_token": {"type": "string"},
+          "token_type": {"type": "string", "default": "Bearer"},
+          "expires_in": {"type": "integer"},
+          "scope": {"type": "string"}
+        }
+      },
+      "MFASetupResponse": {
+        "type": "object",
+        "properties": {
+          "secret": {"type": "string"},
+          "qrCode": {"type": "string"},
+          "backupCodes": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        }
+      },
+      "MFAStatusResponse": {
+        "type": "object",
+        "properties": {
+          "enabled": {"type": "boolean"},
+          "backupCodesCount": {"type": "integer"}
+        }
+      },
+      "APIClient": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "clientId": {"type": "string"},
+          "name": {"type": "string"},
+          "grantTypes": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "scopes": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "isActive": {"type": "boolean"},
+          "createdAt": {"type": "string", "format": "date-time"},
+          "updatedAt": {"type": "string", "format": "date-time"}
+        }
+      },
+      "CreateClientRequest": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "grantTypes": {
+            "type": "array",
+            "items": {"type": "string"},
+            "default": ["client_credentials"]
+          },
+          "scopes": {
+            "type": "array",
+            "items": {"type": "string"},
+            "default": ["read"]
+          }
+        },
+        "required": ["name"]
+      },
+      "SystemStats": {
+        "type": "object",
+        "properties": {
+          "users": {
+            "type": "object",
+            "properties": {
+              "totalUsers": {"type": "integer"},
+              "activeUsers": {"type": "integer"},
+              "pendingUsers": {"type": "integer"},
+              "blockedUsers": {"type": "integer"},
+              "usersByRole": {"type": "object"},
+              "mfaEnabledUsers": {"type": "integer"}
+            }
+          },
+          "system": {
+            "type": "object",
+            "properties": {
+              "totalUsers": {"type": "integer"},
+              "activeUsers": {"type": "integer"},
+              "totalClients": {"type": "integer"},
+              "activeKeys": {"type": "integer"},
+              "recentAuditLogs": {
+                "type": "array",
+                "items": {"$ref": "#/components/schemas/AuditLog"}
+              }
+            }
+          }
+        }
+      },
+      "AuditLog": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "actorId": {"type": "string", "format": "uuid", "nullable": true},
+          "actorType": {"type": "string", "enum": ["user", "system", "client"]},
+          "action": {"type": "string"},
+          "resource": {"type": "string"},
+          "resourceId": {"type": "string", "nullable": true},
+          "metadata": {"type": "object", "nullable": true},
+          "ipAddress": {"type": "string", "nullable": true},
+          "userAgent": {"type": "string", "nullable": true},
+          "success": {"type": "boolean"},
+          "createdAt": {"type": "string", "format": "date-time"}
+        }
+      },
+      "SecurityEvent": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "action": {"type": "string"},
+          "actorId": {"type": "string", "format": "uuid", "nullable": true},
+          "resource": {"type": "string"},
+          "resourceId": {"type": "string", "nullable": true},
+          "success": {"type": "boolean"},
+          "ipAddress": {"type": "string", "nullable": true},
+          "userAgent": {"type": "string", "nullable": true},
+          "metadata": {"type": "object", "nullable": true},
+          "createdAt": {"type": "string", "format": "date-time"}
+        }
+      },
+      "AuditLogsResponse": {
+        "type": "object",
+        "properties": {
+          "logs": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/AuditLog"}
+          },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "page": {"type": "integer"},
+              "limit": {"type": "integer"},
+              "total": {"type": "integer"}
+            }
+          }
+        }
+      },
+      "JWKSResponse": {
+        "type": "object",
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kty": {"type": "string", "example": "RSA"},
+                "use": {"type": "string", "example": "sig"},
+                "kid": {"type": "string"},
+                "alg": {"type": "string", "example": "RS256"},
+                "n": {"type": "string"},
+                "e": {"type": "string"}
+              }
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "message": {"type": "string"},
+          "code": {"type": "string"},
+          "details": {"type": "object"}
+        }
+      },
+      "ValidationError": {
+        "type": "object",
+        "properties": {
+          "message": {"type": "string"},
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {"type": "string"},
+                "message": {"type": "string"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Bad request",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ValidationError"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Unauthorized",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Forbidden",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "InternalServerError": {
+        "description": "Internal server error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  }
+}
