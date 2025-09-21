@@ -108,6 +108,8 @@ export interface IStorage {
     activeSessions: number;
     totalRoles: number;
     activeRoles: number;
+    totalClients: number;
+    activeKeys: number;
     recentAuditLogs: UserAuditLog[];
   }>;
   
@@ -559,6 +561,12 @@ export class DatabaseStorage implements IStorage {
       .from(roles)
       .where(eq(roles.isActive, true));
     
+    const [totalClientsResult] = await db.select({ count: sql<number>`count(*)` }).from(clients);
+    const [activeKeysResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(jwksKeys)
+      .where(eq(jwksKeys.isActive, true));
+    
     const recentAuditLogs = await db
       .select()
       .from(userAuditLog)
@@ -573,6 +581,8 @@ export class DatabaseStorage implements IStorage {
       activeSessions: activeSessionsResult.count,
       totalRoles: totalRolesResult.count,
       activeRoles: activeRolesResult.count,
+      totalClients: totalClientsResult.count,
+      activeKeys: activeKeysResult.count,
       recentAuditLogs,
     };
   }

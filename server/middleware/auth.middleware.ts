@@ -82,7 +82,13 @@ export function requirePermissions(resource: string, action: string) {
     
     const hasPermission = userPermissions.includes('*') || 
                          userPermissions.includes(requiredPermission) ||
-                         userPermissions.some(perm => perm.endsWith(':*') && perm.startsWith(resource));
+                         userPermissions.some(perm => {
+                           if (perm.endsWith(':*')) {
+                             const permResource = perm.split(':')[0];
+                             return permResource === resource;
+                           }
+                           return false;
+                         });
 
     if (!hasPermission) {
       return res.status(403).json({ 

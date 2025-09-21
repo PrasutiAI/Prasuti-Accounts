@@ -8,7 +8,8 @@
  */
 
 import { db } from '../server/db';
-import { users } from '@shared/schema';
+import { storage } from '../server/storage';
+import { users } from '../shared/schema';
 import bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import readline from 'readline';

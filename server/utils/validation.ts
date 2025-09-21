@@ -25,7 +25,7 @@ export function validateBody<T>(schema: z.ZodSchema<T>) {
 export function validateQuery<T>(schema: z.ZodSchema<T>) {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
-      req.query = schema.parse(req.query);
+      req.query = schema.parse(req.query) as any;
       next();
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -45,7 +45,7 @@ export function validateQuery<T>(schema: z.ZodSchema<T>) {
 export function validateParams<T>(schema: z.ZodSchema<T>) {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
-      req.params = schema.parse(req.params);
+      req.params = schema.parse(req.params) as any;
       next();
     } catch (error) {
       if (error instanceof z.ZodError) {

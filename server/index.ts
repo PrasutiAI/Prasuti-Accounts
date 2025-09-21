@@ -1,8 +1,30 @@
+import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
+import helmet from "helmet";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  },
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -21,8 +43,15 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      // Only log response body for non-sensitive endpoints in development
+      if (capturedJsonResponse && process.env.NODE_ENV !== 'production') {
+        const sensitiveEndpoints = ['/api/auth/login', '/api/auth/register', '/api/oauth/token', '/api/mfa'];
+        const isSensitiveEndpoint = sensitiveEndpoints.some(endpoint => path.startsWith(endpoint));
+        if (!isSensitiveEndpoint) {
+          logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        } else {
+          logLine += ` :: [SENSITIVE DATA HIDDEN]`;
+        }
       }
 
       if (logLine.length > 80) {

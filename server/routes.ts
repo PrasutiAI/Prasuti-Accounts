@@ -35,7 +35,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.getUsersCount();
       res.json({ status: 'ready', timestamp: new Date().toISOString() });
     } catch (error) {
-      res.status(503).json({ status: 'not ready', error: error.message });
+      res.status(503).json({ status: 'not ready', error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -96,14 +96,16 @@ idm_failed_logins_24h ${failedLogins.count}
         const result = await authService.register(req.body);
         
         // In production, send email verification
-        console.log('Email verification token:', result.verificationToken);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('Email verification token (dev only):', result.verificationToken);
+        }
         
         res.status(201).json({
           message: 'User registered successfully. Please check your email for verification.',
           verificationSent: true,
         });
       } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(400).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -125,7 +127,7 @@ idm_failed_logins_24h ${failedLogins.count}
           user: result.user,
         });
       } catch (error) {
-        res.status(401).json({ message: error.message });
+        res.status(401).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -138,7 +140,7 @@ idm_failed_logins_24h ${failedLogins.count}
         await authService.logout(req.body.refreshToken, req.user?.id);
         res.json({ message: 'Logged out successfully' });
       } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(400).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -150,7 +152,7 @@ idm_failed_logins_24h ${failedLogins.count}
         await authService.verifyEmail(req.body.token);
         res.json({ message: 'Email verified successfully' });
       } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(400).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -163,11 +165,13 @@ idm_failed_logins_24h ${failedLogins.count}
         const resetToken = await authService.requestPasswordReset(req.body.email);
         
         // In production, send email with reset link
-        console.log('Password reset token:', resetToken);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('Password reset token (dev only):', resetToken);
+        }
         
         res.json({ message: 'Password reset instructions sent to your email' });
       } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(400).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -179,7 +183,7 @@ idm_failed_logins_24h ${failedLogins.count}
         await authService.resetPassword(req.body.token, req.body.password);
         res.json({ message: 'Password reset successfully' });
       } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(400).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -253,7 +257,7 @@ idm_failed_logins_24h ${failedLogins.count}
           res.status(400).json({ error: 'unsupported_grant_type' });
       }
     } catch (error) {
-      res.status(400).json({ error: 'invalid_grant', error_description: error.message });
+      res.status(400).json({ error: 'invalid_grant', error_description: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -263,14 +267,14 @@ idm_failed_logins_24h ${failedLogins.count}
   userRouter.get('/',
     authenticateToken,
     requirePermissions('users', 'read'),
-    validateQuery(commonSchemas.pagination),
+    validateQuery(commonSchemas.pagination as any),
     async (req, res) => {
       try {
         const { page = 1, limit = 50 } = req.query as any;
         const result = await userService.getAllUsers(page, limit);
         res.json(result);
       } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -292,7 +296,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
         res.json(user);
       } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -309,7 +313,7 @@ idm_failed_logins_24h ${failedLogins.count}
         const user = await userService.createUser(req.body, req.user?.id);
         res.status(201).json(user);
       } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(400).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -331,7 +335,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
         res.json(user);
       } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(400).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -349,7 +353,7 @@ idm_failed_logins_24h ${failedLogins.count}
           res.status(404).json({ message: 'User not found' });
         }
       } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(400).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -362,14 +366,14 @@ idm_failed_logins_24h ${failedLogins.count}
   adminRouter.get('/users',
     authenticateToken,
     requireRole(['admin']),
-    validateQuery(commonSchemas.pagination),
+    validateQuery(commonSchemas.pagination as any),
     async (req, res) => {
       try {
         const { page = 1, limit = 50 } = req.query as any;
         const result = await userService.getAllUsers(page, limit);
         res.json(result);
       } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -389,7 +393,7 @@ idm_failed_logins_24h ${failedLogins.count}
           system: systemMetrics,
         });
       } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -410,7 +414,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
         res.json({ message: 'Keys rotated successfully', kid: result.kid });
       } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -427,7 +431,7 @@ idm_failed_logins_24h ${failedLogins.count}
         const result = await mfaService.generateMfaSecret(req.user!.id);
         res.json(result);
       } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(400).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -440,7 +444,7 @@ idm_failed_logins_24h ${failedLogins.count}
         await mfaService.enableMfa(req.user!.id, req.body.mfaCode);
         res.json({ message: 'MFA enabled successfully' });
       } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(400).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -453,7 +457,7 @@ idm_failed_logins_24h ${failedLogins.count}
         await mfaService.disableMfa(req.user!.id, req.body.mfaCode);
         res.json({ message: 'MFA disabled successfully' });
       } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(400).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -465,7 +469,7 @@ idm_failed_logins_24h ${failedLogins.count}
         const status = await mfaService.getMfaStatus(req.user!.id);
         res.json(status);
       } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -485,7 +489,7 @@ idm_failed_logins_24h ${failedLogins.count}
         const safeClients = clients.map(({ clientSecretHash: _, ...client }) => client);
         res.json(safeClients);
       } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -522,7 +526,7 @@ idm_failed_logins_24h ${failedLogins.count}
           clientSecretHash: undefined,
         });
       } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(400).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -535,14 +539,14 @@ idm_failed_logins_24h ${failedLogins.count}
   auditRouter.get('/',
     authenticateToken,
     requireRole(['admin']),
-    validateQuery(commonSchemas.pagination),
+    validateQuery(commonSchemas.pagination as any),
     async (req, res) => {
       try {
         const { page = 1, limit = 50 } = req.query as any;
         const result = await auditService.getAuditLogs({ page, limit });
         res.json(result);
       } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -555,7 +559,7 @@ idm_failed_logins_24h ${failedLogins.count}
         const events = await auditService.getSecurityEvents();
         res.json(events);
       } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: error instanceof Error ? error.message : String(error) });
       }
     }
   );
