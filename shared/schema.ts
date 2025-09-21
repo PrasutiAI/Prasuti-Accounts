@@ -1,55 +1,107 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, uuid, timestamp, boolean, jsonb, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, boolean, jsonb, pgEnum, index } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // Enums
 export const roleEnum = pgEnum('role', ['admin', 'developer', 'user', 'guest']);
-export const userStatusEnum = pgEnum('user_status', ['active', 'inactive', 'pending', 'blocked']);
 export const auditActionEnum = pgEnum('audit_action', ['login', 'logout', 'register', 'password_change', 'mfa_enable', 'mfa_disable', 'role_change', 'user_create', 'user_update', 'user_delete', 'key_rotation', 'api_key_create', 'api_key_revoke']);
 
-// Users table
+// Users table - Updated with security fixes
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
   name: text("name").notNull(),
-  role: roleEnum("role").notNull().default('user'),
-  status: userStatusEnum("status").notNull().default('pending'),
-  isVerified: boolean("is_verified").notNull().default(false),
-  mfaEnabled: boolean("mfa_enabled").notNull().default(false),
-  mfaSecret: text("mfa_secret"),
-  backupCodes: text("backup_codes").array(),
+  passwordHash: text("password_hash").notNull(), // Renamed for clarity and security
+  roleId: uuid("role_id").notNull().references(() => roles.id), // FK to roles table instead of enum
+  isEmailVerified: boolean("is_email_verified").notNull().default(false),
+  isActive: boolean("is_active").notNull().default(true),
+  mfaSecretEncrypted: text("mfa_secret_encrypted"), // Encrypted at rest for security
   lastLogin: timestamp("last_login"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
-});
+}, (table) => ({
+  emailIdx: index("users_email_idx").on(table.email),
+  roleIdx: index("users_role_idx").on(table.roleId),
+  activeIdx: index("users_active_idx").on(table.isActive),
+  emailVerifiedIdx: index("users_email_verified_idx").on(table.isEmailVerified),
+}));
 
-// Roles table
+// Roles table - Updated to match requirements
 export const roles = pgTable("roles", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull().unique(),
   description: text("description"),
-  createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
+  permissions: text("permissions").array().notNull().default(sql`ARRAY[]::text[]`),
+  isActive: boolean("is_active").notNull().default(true),
+}, (table) => ({
+  nameIdx: index("roles_name_idx").on(table.name),
+  activeIdx: index("roles_active_idx").on(table.isActive),
+}));
 
-// Permissions table
-export const permissions = pgTable("permissions", {
+// UserSessions table - Updated with token security fixes
+export const userSessions = pgTable("user_sessions", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull().unique(),
-  resource: text("resource").notNull(),
-  action: text("action").notNull(),
-  description: text("description"),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  refreshTokenHash: text("refresh_token_hash").notNull(), // Store only hashed refresh token
+  expiresAt: timestamp("expires_at").notNull(),
+  isRevoked: boolean("is_revoked").notNull().default(false),
+  deviceInfo: text("device_info"),
+  ipAddress: text("ip_address"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
+}, (table) => ({
+  userIdx: index("sessions_user_idx").on(table.userId),
+  refreshTokenHashIdx: index("sessions_refresh_token_hash_idx").on(table.refreshTokenHash),
+  expiresIdx: index("sessions_expires_idx").on(table.expiresAt),
+  revokedIdx: index("sessions_revoked_idx").on(table.isRevoked),
+}));
 
-// Role permissions junction table
-export const rolePermissions = pgTable("role_permissions", {
+// EmailVerificationTokens table - Updated with token hashing
+export const emailVerificationTokens = pgTable("email_verification_tokens", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  roleId: uuid("role_id").notNull().references(() => roles.id, { onDelete: 'cascade' }),
-  permissionId: uuid("permission_id").notNull().references(() => permissions.id, { onDelete: 'cascade' }),
-});
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tokenHash: text("token_hash").notNull().unique(), // Store only hashed token
+  expiresAt: timestamp("expires_at").notNull(),
+  isUsed: boolean("is_used").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => ({
+  userIdx: index("email_verification_user_idx").on(table.userId),
+  tokenHashIdx: index("email_verification_token_hash_idx").on(table.tokenHash),
+  expiresIdx: index("email_verification_expires_idx").on(table.expiresAt),
+  usedIdx: index("email_verification_used_idx").on(table.isUsed),
+}));
 
+// PasswordResetTokens table - Updated with token hashing
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tokenHash: text("token_hash").notNull().unique(), // Store only hashed token
+  expiresAt: timestamp("expires_at").notNull(),
+  isUsed: boolean("is_used").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => ({
+  userIdx: index("password_reset_user_idx").on(table.userId),
+  tokenHashIdx: index("password_reset_token_hash_idx").on(table.tokenHash),
+  expiresIdx: index("password_reset_expires_idx").on(table.expiresAt),
+  usedIdx: index("password_reset_used_idx").on(table.isUsed),
+}));
+
+// UserAuditLog table - Updated with enum for action consistency
+export const userAuditLog = pgTable("user_audit_log", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").references(() => users.id, { onDelete: 'set null' }),
+  action: auditActionEnum("action").notNull(), // Use enum for consistency
+  ipAddress: text("ip_address"),
+  deviceInfo: text("device_info"),
+  details: jsonb("details"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => ({
+  userIdx: index("audit_user_idx").on(table.userId),
+  actionIdx: index("audit_action_idx").on(table.action),
+  createdIdx: index("audit_created_idx").on(table.createdAt),
+}));
+
+// Additional tables for backward compatibility and full functionality
 // API clients for machine-to-machine authentication
 export const clients = pgTable("clients", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -61,17 +113,10 @@ export const clients = pgTable("clients", {
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
-});
-
-// Refresh tokens
-export const refreshTokens = pgTable("refresh_tokens", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  tokenHash: text("token_hash").notNull().unique(),
-  isRevoked: boolean("is_revoked").notNull().default(false),
-  expiresAt: timestamp("expires_at").notNull(),
-  createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
+}, (table) => ({
+  clientIdIdx: index("clients_client_id_idx").on(table.clientId),
+  activeIdx: index("clients_active_idx").on(table.isActive),
+}));
 
 // JWT signing keys
 export const jwksKeys = pgTable("jwks_keys", {
@@ -82,82 +127,117 @@ export const jwksKeys = pgTable("jwks_keys", {
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   expiresAt: timestamp("expires_at").notNull(),
-});
-
-// Email verification tokens
-export const verificationTokens = pgTable("verification_tokens", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
-  token: text("token").notNull().unique(),
-  type: text("type").notNull(), // 'email_verification', 'password_reset'
-  expiresAt: timestamp("expires_at").notNull(),
-  isUsed: boolean("is_used").notNull().default(false),
-  createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
-
-// Audit logs
-export const auditLogs = pgTable("audit_logs", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  actorId: uuid("actor_id").references(() => users.id),
-  actorType: text("actor_type").notNull().default('user'), // 'user', 'system', 'client'
-  action: auditActionEnum("action").notNull(),
-  resource: text("resource").notNull(),
-  resourceId: text("resource_id"),
-  metadata: jsonb("metadata"),
-  ipAddress: text("ip_address"),
-  userAgent: text("user_agent"),
-  success: boolean("success").notNull().default(true),
-  createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
+}, (table) => ({
+  activeIdx: index("jwks_keys_active_idx").on(table.isActive),
+  expiresIdx: index("jwks_keys_expires_idx").on(table.expiresAt),
+}));
 
 // Relations
-export const usersRelations = relations(users, ({ many }) => ({
-  refreshTokens: many(refreshTokens),
-  verificationTokens: many(verificationTokens),
-  auditLogs: many(auditLogs),
+export const usersRelations = relations(users, ({ one, many }) => ({
+  role: one(roles, { fields: [users.roleId], references: [roles.id] }),
+  userSessions: many(userSessions),
+  emailVerificationTokens: many(emailVerificationTokens),
+  passwordResetTokens: many(passwordResetTokens),
+  userAuditLog: many(userAuditLog),
 }));
 
 export const rolesRelations = relations(roles, ({ many }) => ({
-  rolePermissions: many(rolePermissions),
+  users: many(users),
 }));
 
-export const permissionsRelations = relations(permissions, ({ many }) => ({
-  rolePermissions: many(rolePermissions),
+export const userSessionsRelations = relations(userSessions, ({ one }) => ({
+  user: one(users, { fields: [userSessions.userId], references: [users.id] }),
 }));
 
-export const rolePermissionsRelations = relations(rolePermissions, ({ one }) => ({
-  role: one(roles, { fields: [rolePermissions.roleId], references: [roles.id] }),
-  permission: one(permissions, { fields: [rolePermissions.permissionId], references: [permissions.id] }),
+export const emailVerificationTokensRelations = relations(emailVerificationTokens, ({ one }) => ({
+  user: one(users, { fields: [emailVerificationTokens.userId], references: [users.id] }),
 }));
 
-export const refreshTokensRelations = relations(refreshTokens, ({ one }) => ({
-  user: one(users, { fields: [refreshTokens.userId], references: [users.id] }),
+export const passwordResetTokensRelations = relations(passwordResetTokens, ({ one }) => ({
+  user: one(users, { fields: [passwordResetTokens.userId], references: [users.id] }),
 }));
 
-export const verificationTokensRelations = relations(verificationTokens, ({ one }) => ({
-  user: one(users, { fields: [verificationTokens.userId], references: [users.id] }),
+export const userAuditLogRelations = relations(userAuditLog, ({ one }) => ({
+  user: one(users, { fields: [userAuditLog.userId], references: [users.id] }),
 }));
 
-export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
-  actor: one(users, { fields: [auditLogs.actorId], references: [users.id] }),
+export const clientsRelations = relations(clients, ({ many }) => ({
+  // clients don't have direct relations to other tables in this schema
 }));
 
-// Zod schemas
+// Zod schemas for the new tables
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
   lastLogin: true,
+  passwordHash: true, // Handle password separately for hashing
+  mfaSecretEncrypted: true, // Handle MFA secret separately for encryption
 }).extend({
-  password: z.string().min(8),
-}).omit({
-  passwordHash: true,
+  password: z.string().min(8).describe("Password must be at least 8 characters long"),
+  mfaSecret: z.string().optional().describe("MFA secret (will be encrypted before storage)"),
 });
 
 export const selectUserSchema = createSelectSchema(users).omit({
-  passwordHash: true,
-  mfaSecret: true,
+  passwordHash: true, // Never include password hash in select schema
+  mfaSecretEncrypted: true, // Never include encrypted MFA secret in select schema
 });
+
+export const updateUserSchema = insertUserSchema.partial().omit({
+  password: true, // Handle password updates separately
+  mfaSecret: true, // Handle MFA secret updates separately
+});
+
+export const insertRoleSchema = createInsertSchema(roles).omit({
+  id: true,
+}).extend({
+  permissions: z.array(z.string()).default([]),
+});
+
+export const selectRoleSchema = createSelectSchema(roles);
+
+export const insertUserSessionSchema = createInsertSchema(userSessions).omit({
+  id: true,
+  createdAt: true,
+  refreshTokenHash: true, // Handle token hashing separately
+}).extend({
+  refreshToken: z.string().describe("Refresh token (will be hashed before storage)"),
+});
+
+export const selectUserSessionSchema = createSelectSchema(userSessions).omit({
+  refreshTokenHash: true, // For security, don't expose token hash in select
+});
+
+export const insertEmailVerificationTokenSchema = createInsertSchema(emailVerificationTokens).omit({
+  id: true,
+  createdAt: true,
+  tokenHash: true, // Handle token hashing separately
+}).extend({
+  token: z.string().describe("Verification token (will be hashed before storage)"),
+});
+
+export const selectEmailVerificationTokenSchema = createSelectSchema(emailVerificationTokens).omit({
+  tokenHash: true, // For security, don't expose token hash in select
+});
+
+export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTokens).omit({
+  id: true,
+  createdAt: true,
+  tokenHash: true, // Handle token hashing separately
+}).extend({
+  token: z.string().describe("Reset token (will be hashed before storage)"),
+});
+
+export const selectPasswordResetTokenSchema = createSelectSchema(passwordResetTokens).omit({
+  tokenHash: true, // For security, don't expose token hash in select
+});
+
+export const insertUserAuditLogSchema = createInsertSchema(userAuditLog).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const selectUserAuditLogSchema = createSelectSchema(userAuditLog);
 
 export const insertClientSchema = createInsertSchema(clients).omit({
   id: true,
@@ -168,52 +248,60 @@ export const insertClientSchema = createInsertSchema(clients).omit({
   clientSecret: z.string().min(32),
 });
 
-export const insertRoleSchema = createInsertSchema(roles).omit({
-  id: true,
-  createdAt: true,
-});
-
-export const insertPermissionSchema = createInsertSchema(permissions).omit({
-  id: true,
-  createdAt: true,
-});
-
-export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
-  id: true,
-  createdAt: true,
+export const selectClientSchema = createSelectSchema(clients).omit({
+  clientSecretHash: true,
 });
 
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type SelectUser = z.infer<typeof selectUserSchema>;
-
-export type Client = typeof clients.$inferSelect;
-export type InsertClient = z.infer<typeof insertClientSchema>;
+export type UpdateUser = z.infer<typeof updateUserSchema>;
 
 export type Role = typeof roles.$inferSelect;
 export type InsertRole = z.infer<typeof insertRoleSchema>;
+export type SelectRole = z.infer<typeof selectRoleSchema>;
 
-export type Permission = typeof permissions.$inferSelect;
-export type InsertPermission = z.infer<typeof insertPermissionSchema>;
+export type UserSession = typeof userSessions.$inferSelect;
+export type InsertUserSession = z.infer<typeof insertUserSessionSchema>;
+export type SelectUserSession = z.infer<typeof selectUserSessionSchema>;
 
-export type RefreshToken = typeof refreshTokens.$inferSelect;
+export type EmailVerificationToken = typeof emailVerificationTokens.$inferSelect;
+export type InsertEmailVerificationToken = z.infer<typeof insertEmailVerificationTokenSchema>;
+export type SelectEmailVerificationToken = z.infer<typeof selectEmailVerificationTokenSchema>;
+
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type InsertPasswordResetToken = z.infer<typeof insertPasswordResetTokenSchema>;
+export type SelectPasswordResetToken = z.infer<typeof selectPasswordResetTokenSchema>;
+
+export type UserAuditLog = typeof userAuditLog.$inferSelect;
+export type InsertUserAuditLog = z.infer<typeof insertUserAuditLogSchema>;
+export type SelectUserAuditLog = z.infer<typeof selectUserAuditLogSchema>;
+
+export type Client = typeof clients.$inferSelect;
+export type InsertClient = z.infer<typeof insertClientSchema>;
+export type SelectClient = z.infer<typeof selectClientSchema>;
+
 export type JwksKey = typeof jwksKeys.$inferSelect;
-export type VerificationToken = typeof verificationTokens.$inferSelect;
-export type AuditLog = typeof auditLogs.$inferSelect;
-export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 
-// Login/Auth schemas
+// Authentication-related schemas
 export const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+  email: z.string().email("Please enter a valid email address"),
+  password: z.string().min(1, "Password is required"),
   mfaCode: z.string().optional(),
 });
 
-export const registerSchema = insertUserSchema;
+// Registration schema excludes roleId since it's assigned automatically by AuthService
+export const registerSchema = insertUserSchema.omit({
+  roleId: true, // Role is assigned automatically during registration
+});
 
 export const refreshTokenSchema = z.object({
   refreshToken: z.string(),
+});
+
+export const verifyEmailSchema = z.object({
+  token: z.string(),
 });
 
 export const verifyTokenSchema = z.object({
@@ -222,22 +310,28 @@ export const verifyTokenSchema = z.object({
 
 export const resetPasswordSchema = z.object({
   token: z.string(),
-  password: z.string().min(8),
+  password: z.string().min(8, "Password must be at least 8 characters long"),
 });
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string(),
-  newPassword: z.string().min(8),
+  newPassword: z.string().min(8, "Password must be at least 8 characters long"),
 });
 
 export const enableMfaSchema = z.object({
-  mfaCode: z.string().length(6),
+  mfaCode: z.string().length(6, "MFA code must be 6 digits"),
 });
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().email("Please enter a valid email address"),
+});
+
+// Auth request/response types
 export type LoginRequest = z.infer<typeof loginSchema>;
 export type RegisterRequest = z.infer<typeof registerSchema>;
 export type RefreshTokenRequest = z.infer<typeof refreshTokenSchema>;
-export type VerifyTokenRequest = z.infer<typeof verifyTokenSchema>;
+export type VerifyEmailRequest = z.infer<typeof verifyEmailSchema>;
 export type ResetPasswordRequest = z.infer<typeof resetPasswordSchema>;
 export type ChangePasswordRequest = z.infer<typeof changePasswordSchema>;
 export type EnableMfaRequest = z.infer<typeof enableMfaSchema>;
+export type ForgotPasswordRequest = z.infer<typeof forgotPasswordSchema>;

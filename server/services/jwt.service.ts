@@ -37,11 +37,15 @@ export class JwtService {
       throw new Error('No active signing key found');
     }
 
+    // Get user role information
+    const role = await storage.getRole(user.roleId);
+    const roleName = role?.name || 'user';
+
     const payload: Omit<JwtPayload, 'iat' | 'exp'> = {
       sub: user.id,
       email: user.email,
       name: user.name,
-      role: user.role,
+      role: roleName,
       iss: this.issuer,
       aud: this.audience,
     };
@@ -52,7 +56,7 @@ export class JwtService {
       algorithm: 'RS256',
       keyid: activeKey.kid,
       expiresIn: this.accessTokenTtl,
-    });
+    } as jwt.SignOptions);
   }
 
   async verifyToken(token: string): Promise<JwtPayload> {
@@ -82,7 +86,7 @@ export class JwtService {
 
       return payload;
     } catch (error) {
-      throw new Error(`Token verification failed: ${error.message}`);
+      throw new Error(`Token verification failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -93,7 +97,7 @@ export class JwtService {
     const jwksKeys = await Promise.all(
       activeKeys.map(async (key) => {
         const publicKey = createPublicKey(key.publicKey);
-        const keyObject = publicKey.asymmetricKeyDetails;
+        const keyObject = publicKey.asymmetricKeyDetails as any;
         
         if (!keyObject || !keyObject.n || !keyObject.e) {
           throw new Error(`Invalid public key format for kid: ${key.kid}`);
@@ -104,8 +108,8 @@ export class JwtService {
           use: 'sig',
           kid: key.kid,
           alg: key.algorithm,
-          n: keyObject.n.toString('base64url'),
-          e: keyObject.e.toString('base64url'),
+          n: (keyObject.n as Buffer).toString('base64url'),
+          e: (keyObject.e as Buffer).toString('base64url'),
         };
       })
     );
@@ -164,7 +168,7 @@ export class JwtService {
     try {
       return await this.verifyToken(token);
     } catch (error) {
-      console.error('Token validation failed:', error.message);
+      console.error('Token validation failed:', error instanceof Error ? error.message : String(error));
       return null;
     }
   }

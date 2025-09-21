@@ -1,8 +1,8 @@
 import bcrypt from 'bcrypt';
-import { randomBytes } from 'crypto';
 import { storage } from '../storage';
 import { jwtService } from './jwt.service';
 import { auditService } from './audit.service';
+import { cryptoUtils } from '../utils/crypto';
 import type { LoginRequest, RegisterRequest, User } from '@shared/schema';
 
 export class AuthService {
@@ -16,36 +16,38 @@ export class AuthService {
       throw new Error('User already exists with this email');
     }
 
-    // Hash password
-    const passwordHash = await bcrypt.hash(userData.password, this.saltRounds);
+    // Get default user role
+    const defaultRole = await storage.getRoleByName('user');
+    if (!defaultRole) {
+      throw new Error('Default user role not found');
+    }
 
-    // Create user
+    // Create user with new secure schema
     const user = await storage.createUser({
-      ...userData,
-      passwordHash,
-      status: 'pending',
+      email: userData.email,
+      name: userData.name,
+      password: userData.password, // Will be hashed in storage layer with bcrypt
+      roleId: defaultRole.id,
+      mfaSecret: userData.mfaSecret, // Will be encrypted in storage layer
     });
 
     // Generate verification token
-    const verificationToken = randomBytes(32).toString('hex');
-    await storage.createVerificationToken({
+    const verificationToken = cryptoUtils.generateEmailVerificationToken();
+    await storage.createEmailVerificationToken({
       userId: user.id,
-      token: verificationToken,
-      type: 'email_verification',
+      token: verificationToken, // Will be hashed in storage layer
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
     });
 
     // Log audit event
-    await auditService.log({
-      actorId: user.id,
+    await storage.createUserAuditLog({
+      userId: user.id,
       action: 'register',
-      resource: 'user',
-      resourceId: user.id,
-      success: true,
+      details: { email: user.email },
     });
 
-    const { passwordHash: _, ...userWithoutPassword } = user;
-    return { user: userWithoutPassword, verificationToken };
+    const { passwordHash: _, mfaSecretEncrypted: __, ...userWithoutSensitiveData } = user;
+    return { user: userWithoutSensitiveData as any, verificationToken };
   }
 
   async login(credentials: LoginRequest, ipAddress?: string, userAgent?: string): Promise<{
@@ -56,13 +58,12 @@ export class AuthService {
     // Get user
     const user = await storage.getUserByEmail(credentials.email);
     if (!user) {
-      await auditService.log({
+      await storage.createUserAuditLog({
+        userId: null,
         action: 'login',
-        resource: 'user',
-        metadata: { email: credentials.email },
         ipAddress,
-        userAgent,
-        success: false,
+        deviceInfo: userAgent,
+        details: { email: credentials.email, success: false, reason: 'user_not_found' },
       });
       throw new Error('Invalid credentials');
     }
@@ -70,31 +71,28 @@ export class AuthService {
     // Verify password
     const isValidPassword = await bcrypt.compare(credentials.password, user.passwordHash);
     if (!isValidPassword) {
-      await auditService.log({
-        actorId: user.id,
+      await storage.createUserAuditLog({
+        userId: user.id,
         action: 'login',
-        resource: 'user',
-        resourceId: user.id,
-        metadata: { reason: 'invalid_password' },
         ipAddress,
-        userAgent,
-        success: false,
+        deviceInfo: userAgent,
+        details: { success: false, reason: 'invalid_password' },
       });
       throw new Error('Invalid credentials');
     }
 
     // Check if user is verified
-    if (!user.isVerified) {
+    if (!user.isEmailVerified) {
       throw new Error('Email not verified');
     }
 
     // Check if user is active
-    if (user.status !== 'active') {
+    if (!user.isActive) {
       throw new Error('Account is not active');
     }
 
     // Check MFA if enabled
-    if (user.mfaEnabled) {
+    if (user.mfaSecretEncrypted) {
       if (!credentials.mfaCode) {
         throw new Error('MFA code required');
       }
@@ -102,15 +100,12 @@ export class AuthService {
       const { mfaService } = await import('./mfa.service');
       const isMfaValid = await mfaService.verifyToken(user.id, credentials.mfaCode);
       if (!isMfaValid) {
-        await auditService.log({
-          actorId: user.id,
+        await storage.createUserAuditLog({
+          userId: user.id,
           action: 'login',
-          resource: 'user',
-          resourceId: user.id,
-          metadata: { reason: 'invalid_mfa' },
           ipAddress,
-          userAgent,
-          success: false,
+          deviceInfo: userAgent,
+          details: { success: false, reason: 'invalid_mfa' },
         });
         throw new Error('Invalid MFA code');
       }
@@ -118,110 +113,99 @@ export class AuthService {
 
     // Generate tokens
     const accessToken = await jwtService.generateAccessToken(user);
-    const refreshToken = await this.generateRefreshToken(user.id);
+    const refreshToken = await this.generateRefreshToken(user.id, ipAddress, userAgent);
 
     // Update last login
     await storage.updateUser(user.id, { lastLogin: new Date() });
 
     // Log successful login
-    await auditService.log({
-      actorId: user.id,
+    await storage.createUserAuditLog({
+      userId: user.id,
       action: 'login',
-      resource: 'user',
-      resourceId: user.id,
       ipAddress,
-      userAgent,
-      success: true,
+      deviceInfo: userAgent,
+      details: { success: true },
     });
 
-    const { passwordHash: _, ...userWithoutPassword } = user;
-    return { user: userWithoutPassword, accessToken, refreshToken };
+    const { passwordHash: _, mfaSecretEncrypted: __, ...userWithoutSensitiveData } = user;
+    return { user: userWithoutSensitiveData as any, accessToken, refreshToken };
   }
 
   async logout(refreshToken: string, userId?: string): Promise<void> {
-    // Revoke refresh token
-    await this.revokeRefreshToken(refreshToken);
+    // Get session to revoke
+    const session = await storage.getUserSessionByRefreshToken(refreshToken);
+    if (session) {
+      await storage.revokeUserSession(session.id);
+    }
 
     // Log logout
     if (userId) {
-      await auditService.log({
-        actorId: userId,
+      await storage.createUserAuditLog({
+        userId,
         action: 'logout',
-        resource: 'user',
-        resourceId: userId,
-        success: true,
+        details: { success: true },
       });
     }
   }
 
   async refreshAccessToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
-    // Verify refresh token
-    const hashedToken = await bcrypt.hash(refreshToken, 1);
-    const storedToken = await storage.getRefreshToken(hashedToken);
+    // Get session using hashed token lookup
+    const session = await storage.getUserSessionByRefreshToken(refreshToken);
     
-    if (!storedToken || storedToken.expiresAt < new Date()) {
+    if (!session || session.expiresAt < new Date() || session.isRevoked) {
       throw new Error('Invalid or expired refresh token');
     }
 
     // Get user
-    const user = await storage.getUser(storedToken.userId);
+    const user = await storage.getUser(session.userId);
     if (!user) {
       throw new Error('User not found');
     }
 
     // Generate new tokens
     const newAccessToken = await jwtService.generateAccessToken(user);
-    const newRefreshToken = await this.generateRefreshToken(user.id);
+    const newRefreshToken = await this.generateRefreshToken(user.id, session.ipAddress || undefined, session.deviceInfo || undefined);
 
-    // Revoke old refresh token
-    await storage.revokeRefreshToken(storedToken.tokenHash);
+    // Revoke old session
+    await storage.revokeUserSession(session.id);
 
     return { accessToken: newAccessToken, refreshToken: newRefreshToken };
   }
 
   async verifyEmail(token: string): Promise<void> {
-    const verificationToken = await storage.getVerificationToken(token);
-    if (!verificationToken || verificationToken.expiresAt < new Date()) {
+    const verificationToken = await storage.getEmailVerificationToken(token);
+    if (!verificationToken || verificationToken.expiresAt < new Date() || verificationToken.isUsed) {
       throw new Error('Invalid or expired verification token');
-    }
-
-    if (verificationToken.type !== 'email_verification') {
-      throw new Error('Invalid token type');
     }
 
     // Verify user
     await storage.updateUser(verificationToken.userId, {
-      isVerified: true,
-      status: 'active',
+      isEmailVerified: true,
     });
 
     // Mark token as used
-    await storage.markTokenAsUsed(token);
+    await storage.markEmailTokenAsUsed(token);
 
     // Log audit event
-    await auditService.log({
-      actorId: verificationToken.userId,
+    await storage.createUserAuditLog({
+      userId: verificationToken.userId,
       action: 'register',
-      resource: 'user',
-      resourceId: verificationToken.userId,
-      metadata: { email_verified: true },
-      success: true,
+      details: { email_verified: true, success: true },
     });
   }
 
   async requestPasswordReset(email: string): Promise<string> {
     const user = await storage.getUserByEmail(email);
     if (!user) {
-      // Still return success to avoid email enumeration
-      return 'reset_email_sent';
+      // Still return a token to avoid email enumeration, but it won't work
+      return cryptoUtils.generatePasswordResetToken();
     }
 
     // Generate reset token
-    const resetToken = randomBytes(32).toString('hex');
-    await storage.createVerificationToken({
+    const resetToken = cryptoUtils.generatePasswordResetToken();
+    await storage.createPasswordResetToken({
       userId: user.id,
-      token: resetToken,
-      type: 'password_reset',
+      token: resetToken, // Will be hashed in storage layer
       expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
     });
 
@@ -229,53 +213,43 @@ export class AuthService {
   }
 
   async resetPassword(token: string, newPassword: string): Promise<void> {
-    const verificationToken = await storage.getVerificationToken(token);
-    if (!verificationToken || verificationToken.expiresAt < new Date()) {
+    const resetToken = await storage.getPasswordResetToken(token);
+    if (!resetToken || resetToken.expiresAt < new Date() || resetToken.isUsed) {
       throw new Error('Invalid or expired reset token');
-    }
-
-    if (verificationToken.type !== 'password_reset') {
-      throw new Error('Invalid token type');
     }
 
     // Hash new password
     const passwordHash = await bcrypt.hash(newPassword, this.saltRounds);
 
     // Update password
-    await storage.updateUser(verificationToken.userId, { passwordHash });
+    await storage.updateUser(resetToken.userId, { passwordHash });
 
     // Mark token as used
-    await storage.markTokenAsUsed(token);
+    await storage.markPasswordTokenAsUsed(token);
 
-    // Revoke all refresh tokens for this user
-    await storage.revokeUserRefreshTokens(verificationToken.userId);
+    // Revoke all user sessions for this user
+    await storage.revokeUserSessions(resetToken.userId);
 
     // Log audit event
-    await auditService.log({
-      actorId: verificationToken.userId,
+    await storage.createUserAuditLog({
+      userId: resetToken.userId,
       action: 'password_change',
-      resource: 'user',
-      resourceId: verificationToken.userId,
-      success: true,
+      details: { success: true },
     });
   }
 
-  private async generateRefreshToken(userId: string): Promise<string> {
-    const token = randomBytes(32).toString('hex');
-    const tokenHash = await bcrypt.hash(token, this.saltRounds);
+  private async generateRefreshToken(userId: string, ipAddress?: string, deviceInfo?: string): Promise<string> {
+    const token = cryptoUtils.generateRefreshToken();
 
-    await storage.createRefreshToken({
+    await storage.createUserSession({
       userId,
-      tokenHash,
+      refreshToken: token, // Will be hashed in storage layer
       expiresAt: new Date(Date.now() + this.refreshTokenTtl),
+      ipAddress,
+      deviceInfo,
     });
 
     return token;
-  }
-
-  private async revokeRefreshToken(token: string): Promise<void> {
-    const tokenHash = await bcrypt.hash(token, 1);
-    await storage.revokeRefreshToken(tokenHash);
   }
 }
 

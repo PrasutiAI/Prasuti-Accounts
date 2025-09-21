@@ -27,15 +27,29 @@ describe('Authentication API', () => {
   });
 
   beforeEach(async () => {
-    // Create a test user
-    const passwordHash = await bcrypt.hash('TestPassword123!', 12);
+    // Get or create user role
+    let userRole = await storage.getRoleByName('user');
+    if (!userRole) {
+      userRole = await storage.createRole({
+        name: 'user',
+        description: 'Regular user access',
+        permissions: ['read'],
+        isActive: true,
+      });
+    }
+    
+    // Create a test user with proper schema
     testUser = await storage.createUser({
       email: 'test@example.com',
       name: 'Test User',
-      passwordHash,
-      role: 'user',
-      status: 'active',
-      isVerified: true,
+      password: 'TestPassword123!', // Let storage hash it
+      roleId: userRole.id,
+    });
+    
+    // Manually verify email for testing
+    await storage.updateUser(testUser.id, {
+      isEmailVerified: true,
+      isActive: true,
     });
   });
 
@@ -45,7 +59,6 @@ describe('Authentication API', () => {
         email: 'newuser@example.com',
         password: 'StrongPassword123!',
         name: 'New User',
-        role: 'user',
       };
 
       const response = await request(app)
@@ -62,7 +75,6 @@ describe('Authentication API', () => {
         email: 'newuser@example.com',
         password: 'weak',
         name: 'New User',
-        role: 'user',
       };
 
       await request(app)
@@ -76,7 +88,6 @@ describe('Authentication API', () => {
         email: 'invalid-email',
         password: 'StrongPassword123!',
         name: 'New User',
-        role: 'user',
       };
 
       await request(app)
@@ -90,7 +101,6 @@ describe('Authentication API', () => {
         email: testUser.email,
         password: 'StrongPassword123!',
         name: 'Another User',
-        role: 'user',
       };
 
       await request(app)

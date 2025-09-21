@@ -24,7 +24,7 @@ export class UserService {
     const user = await storage.getUser(id);
     if (!user) return undefined;
 
-    const { passwordHash: _, mfaSecret: __, ...userWithoutSensitiveData } = user;
+    const { passwordHash: _, mfaSecretEncrypted: __, ...userWithoutSensitiveData } = user;
     return userWithoutSensitiveData;
   }
 
@@ -35,30 +35,22 @@ export class UserService {
       throw new Error('User already exists with this email');
     }
 
-    // Hash password
-    const passwordHash = await bcrypt.hash(userData.password, this.saltRounds);
-
-    // Create user
-    const user = await storage.createUser({
-      ...userData,
-      passwordHash,
-    });
+    // Create user (password will be hashed in storage layer)
+    const user = await storage.createUser(userData);
 
     // Log audit event
-    await auditService.log({
-      actorId,
+    await storage.createUserAuditLog({
+      userId: user.id,
       action: 'user_create',
-      resource: 'user',
-      resourceId: user.id,
-      metadata: {
+      details: {
         email: user.email,
-        role: user.role,
+        roleId: user.roleId,
         sendWelcomeEmail: userData.sendWelcomeEmail,
+        success: true,
       },
-      success: true,
     });
 
-    const { passwordHash: _, mfaSecret: __, ...userWithoutSensitiveData } = user;
+    const { passwordHash: _, mfaSecretEncrypted: __, ...userWithoutSensitiveData } = user;
     return userWithoutSensitiveData;
   }
 
@@ -87,7 +79,7 @@ export class UserService {
       success: true,
     });
 
-    const { passwordHash: _, mfaSecret: __, ...userWithoutSensitiveData } = updatedUser;
+    const { passwordHash: _, mfaSecretEncrypted: __, ...userWithoutSensitiveData } = updatedUser;
     return userWithoutSensitiveData;
   }
 
@@ -98,11 +90,15 @@ export class UserService {
     }
 
     // Don't allow deletion of the last admin
-    if (existingUser.role === 'admin') {
+    const userRole = await storage.getRole(existingUser.roleId);
+    if (userRole?.name === 'admin') {
       const allUsers = await storage.getAllUsers();
-      const adminCount = allUsers.filter(u => u.role === 'admin' && u.id !== id).length;
-      if (adminCount === 0) {
-        throw new Error('Cannot delete the last admin user');
+      const adminRole = await storage.getRoleByName('admin');
+      if (adminRole) {
+        const adminCount = allUsers.filter(u => u.roleId === adminRole.id && u.id !== id).length;
+        if (adminCount === 0) {
+          throw new Error('Cannot delete the last admin user');
+        }
       }
     }
 
@@ -110,7 +106,7 @@ export class UserService {
 
     if (deleted) {
       // Revoke all refresh tokens
-      await storage.revokeUserRefreshTokens(id);
+      await storage.revokeUserSessions(id);
 
       // Log audit event
       await auditService.log({
@@ -120,7 +116,7 @@ export class UserService {
         resourceId: id,
         metadata: {
           email: existingUser.email,
-          role: existingUser.role,
+          roleId: existingUser.roleId,
         },
         success: true,
       });
@@ -138,7 +134,7 @@ export class UserService {
     }
 
     // Revoke all refresh tokens to force re-login
-    await storage.revokeUserRefreshTokens(id);
+    await storage.revokeUserSessions(id);
 
     // Log audit event
     await auditService.log({
@@ -153,13 +149,13 @@ export class UserService {
     });
   }
 
-  async toggleUserStatus(id: string, status: 'active' | 'inactive' | 'blocked', actorId?: string): Promise<SelectUser | undefined> {
-    const updatedUser = await storage.updateUser(id, { status });
+  async toggleUserStatus(id: string, isActive: boolean, actorId?: string): Promise<SelectUser | undefined> {
+    const updatedUser = await storage.updateUser(id, { isActive });
     if (!updatedUser) return undefined;
 
-    // If blocking user, revoke all refresh tokens
-    if (status === 'blocked') {
-      await storage.revokeUserRefreshTokens(id);
+    // If deactivating user, revoke all refresh tokens
+    if (!isActive) {
+      await storage.revokeUserSessions(id);
     }
 
     // Log audit event
@@ -169,38 +165,53 @@ export class UserService {
       resource: 'user',
       resourceId: id,
       metadata: {
-        status_change: status,
+        status_change: isActive ? 'active' : 'inactive',
       },
       success: true,
     });
 
-    const { passwordHash: _, mfaSecret: __, ...userWithoutSensitiveData } = updatedUser;
+    const { passwordHash: _, mfaSecretEncrypted: __, ...userWithoutSensitiveData } = updatedUser;
     return userWithoutSensitiveData;
   }
 
   async getUserStats(): Promise<{
     totalUsers: number;
     activeUsers: number;
-    pendingUsers: number;
-    blockedUsers: number;
+    verifiedUsers: number;
+    unverifiedUsers: number;
     usersByRole: Record<string, number>;
     mfaEnabledUsers: number;
   }> {
-    const allUsers = await storage.getAllUsers(1000); // Get more users for stats
+    const [allUsers, allRoles] = await Promise.all([
+      storage.getAllUsers(1000), // Get more users for stats
+      storage.getAllRoles()
+    ]);
     
     const stats = {
       totalUsers: allUsers.length,
-      activeUsers: allUsers.filter(u => u.status === 'active').length,
-      pendingUsers: allUsers.filter(u => u.status === 'pending').length,
-      blockedUsers: allUsers.filter(u => u.status === 'blocked').length,
+      activeUsers: allUsers.filter(u => u.isActive).length,
+      verifiedUsers: allUsers.filter(u => u.isEmailVerified).length,
+      unverifiedUsers: allUsers.filter(u => !u.isEmailVerified).length,
       usersByRole: {} as Record<string, number>,
-      mfaEnabledUsers: allUsers.filter(u => u.mfaEnabled).length,
+      mfaEnabledUsers: 0,
     };
 
-    // Count users by role
-    allUsers.forEach(user => {
-      stats.usersByRole[user.role] = (stats.usersByRole[user.role] || 0) + 1;
-    });
+    // Count users by role and calculate MFA enabled users
+    let mfaCount = 0;
+    for (const user of allUsers) {
+      // Count by role
+      const role = allRoles.find(r => r.id === user.roleId);
+      const roleName = role?.name || 'unknown';
+      stats.usersByRole[roleName] = (stats.usersByRole[roleName] || 0) + 1;
+      
+      // Count MFA enabled (need full user record for this)
+      const fullUser = await storage.getUser(user.id);
+      if (fullUser?.mfaSecretEncrypted) {
+        mfaCount++;
+      }
+    }
+    
+    stats.mfaEnabledUsers = mfaCount;
 
     return stats;
   }

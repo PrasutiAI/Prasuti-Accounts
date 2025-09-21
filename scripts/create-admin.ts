@@ -171,42 +171,74 @@ async function createAdminUser(options: CreateAdminOptions): Promise<void> {
       return;
     }
 
-    // Hash password
-    console.log('🔒 Hashing password...');
-    const passwordHash = await bcrypt.hash(password, 12);
-
-    // Create or update user
-    const userData = {
-      id: randomUUID(),
-      email: email.toLowerCase().trim(),
-      name: name.trim(),
-      passwordHash,
-      role: 'admin' as const,
-      status: 'active' as const,
-      isVerified: true,
-      mfaEnabled: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    // Get or create admin role
+    console.log('🔍 Finding admin role...');
+    let adminRole;
+    try {
+      const { storage } = await import('../server/storage');
+      adminRole = await storage.getRoleByName('admin');
+      if (!adminRole) {
+        console.log('⚠️  Admin role not found, creating it...');
+        adminRole = await storage.createRole({
+          name: 'admin',
+          description: 'Full system administrator access',
+          permissions: ['*'], // All permissions
+          isActive: true,
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error handling admin role:', error);
+      rl.close();
+      return;
+    }
 
     if (options.force && await checkExistingUser(email)) {
-      // Update existing user
-      await db.update(users)
-        .set({
-          name: userData.name,
-          passwordHash: userData.passwordHash,
-          role: userData.role,
-          status: userData.status,
-          isVerified: userData.isVerified,
-          updatedAt: userData.updatedAt,
-        })
-        .where((u) => u.email === userData.email);
-      
-      console.log('✅ Admin user updated successfully!');
+      // Update existing user using storage layer for proper hashing
+      try {
+        const existingUser = await storage.getUserByEmail(email);
+        if (existingUser) {
+          // Hash password for direct update (bypass storage.createUser)
+          const passwordHash = await bcrypt.hash(password, 12);
+          await storage.updateUser(existingUser.id, {
+            name: name.trim(),
+            passwordHash: passwordHash, // Already hashed for updateUser
+            roleId: adminRole.id,
+            isActive: true,
+            isEmailVerified: true,
+            updatedAt: new Date(),
+          });
+          console.log('✅ Admin user updated successfully!');
+        }
+      } catch (error) {
+        console.error('❌ Error updating admin user:', error);
+        rl.close();
+        return;
+      }
     } else {
-      // Create new user
-      await db.insert(users).values(userData);
-      console.log('✅ Admin user created successfully!');
+      // Create new user using storage layer for proper hashing
+      try {
+        await storage.createUser({
+          email: email.toLowerCase().trim(),
+          name: name.trim(),
+          password: password, // Let storage hash it
+          roleId: adminRole.id,
+          // Note: MFA will be disabled by default, email will be verified after creation
+        });
+        
+        // Manually verify email since this is admin creation
+        const createdUser = await storage.getUserByEmail(email.toLowerCase().trim());
+        if (createdUser) {
+          await storage.updateUser(createdUser.id, {
+            isEmailVerified: true,
+          });
+        }
+        
+        console.log('✅ Admin user created successfully!');
+      } catch (error) {
+        console.error('❌ Error creating admin user:', error);
+        rl.close();
+        return;
+      }
     }
 
     console.log('\n📝 Next steps:');

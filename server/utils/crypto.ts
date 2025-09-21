@@ -89,6 +89,46 @@ class CryptoUtils {
     const hashedInput = this.hashApiKey(apiKey);
     return hashedInput === hashedKey;
   }
+
+  // Token hashing for security (SHA-256)
+  hashToken(token: string): string {
+    const crypto = require('crypto');
+    return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
+  verifyToken(token: string, hashedToken: string): boolean {
+    const hashedInput = this.hashToken(token);
+    return hashedInput === hashedToken;
+  }
+
+  // Generate cryptographically secure random token
+  generateSecureToken(length = 32): string {
+    return randomBytes(length).toString('hex');
+  }
+
+  // Generate refresh token with specific format
+  generateRefreshToken(): string {
+    const prefix = 'rt';
+    const timestamp = Date.now().toString(36);
+    const random = randomBytes(32).toString('hex');
+    return `${prefix}_${timestamp}_${random}`;
+  }
+
+  // Generate email verification token
+  generateEmailVerificationToken(): string {
+    const prefix = 'evt';
+    const timestamp = Date.now().toString(36);
+    const random = randomBytes(24).toString('hex');
+    return `${prefix}_${timestamp}_${random}`;
+  }
+
+  // Generate password reset token
+  generatePasswordResetToken(): string {
+    const prefix = 'prt';
+    const timestamp = Date.now().toString(36);
+    const random = randomBytes(24).toString('hex');
+    return `${prefix}_${timestamp}_${random}`;
+  }
 }
 
 export const cryptoUtils = new CryptoUtils();

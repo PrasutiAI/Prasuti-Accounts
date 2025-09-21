@@ -29,7 +29,7 @@ export async function authenticateToken(req: Request, res: Response, next: NextF
     
     // Verify user still exists and is active
     const user = await storage.getUser(payload.sub);
-    if (!user || user.status !== 'active') {
+    if (!user || !user.isActive) {
       return res.status(401).json({ message: 'User not found or inactive' });
     }
 
@@ -105,7 +105,7 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
       const payload = await jwtService.verifyToken(token);
       const user = await storage.getUser(payload.sub);
       
-      if (user && user.status === 'active') {
+      if (user && user.isActive) {
         req.user = {
           id: payload.sub,
           email: payload.email,

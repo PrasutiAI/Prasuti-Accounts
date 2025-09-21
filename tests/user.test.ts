@@ -22,26 +22,54 @@ describe('User Management API', () => {
     const httpServer = await registerRoutes(app);
     server = httpServer;
 
-    // Create admin user
-    const adminPasswordHash = await bcrypt.hash('AdminPassword123!', 12);
+    // Get or create admin role
+    let adminRole = await storage.getRoleByName('admin');
+    if (!adminRole) {
+      adminRole = await storage.createRole({
+        name: 'admin',
+        description: 'Full system administrator access',
+        permissions: ['*'],
+        isActive: true,
+      });
+    }
+    
+    // Get or create user role
+    let userRole = await storage.getRoleByName('user');
+    if (!userRole) {
+      userRole = await storage.createRole({
+        name: 'user',
+        description: 'Regular user access',
+        permissions: ['read'],
+        isActive: true,
+      });
+    }
+
+    // Create admin user with proper schema
     adminUser = await storage.createUser({
       email: 'admin@example.com',
       name: 'Admin User',
-      passwordHash: adminPasswordHash,
-      role: 'admin',
-      status: 'active',
-      isVerified: true,
+      password: 'AdminPassword123!', // Let storage hash it
+      roleId: adminRole.id,
+    });
+    
+    // Manually verify and activate admin
+    await storage.updateUser(adminUser.id, {
+      isEmailVerified: true,
+      isActive: true,
     });
 
-    // Create regular user
-    const userPasswordHash = await bcrypt.hash('UserPassword123!', 12);
+    // Create regular user with proper schema
     regularUser = await storage.createUser({
       email: 'user@example.com',
       name: 'Regular User',
-      passwordHash: userPasswordHash,
-      role: 'user',
-      status: 'active',
-      isVerified: true,
+      password: 'UserPassword123!', // Let storage hash it
+      roleId: userRole.id,
+    });
+    
+    // Manually verify and activate user
+    await storage.updateUser(regularUser.id, {
+      isEmailVerified: true,
+      isActive: true,
     });
 
     // Generate tokens
@@ -133,8 +161,6 @@ describe('User Management API', () => {
         email: 'newuser@example.com',
         name: 'New User',
         password: 'NewUserPassword123!',
-        role: 'user',
-        status: 'active',
       };
 
       const response = await request(app)
@@ -153,7 +179,6 @@ describe('User Management API', () => {
         email: 'another@example.com',
         name: 'Another User',
         password: 'AnotherPassword123!',
-        role: 'user',
       };
 
       await request(app)
@@ -168,7 +193,6 @@ describe('User Management API', () => {
         email: adminUser.email,
         name: 'Duplicate User',
         password: 'DuplicatePassword123!',
-        role: 'user',
       };
 
       await request(app)
