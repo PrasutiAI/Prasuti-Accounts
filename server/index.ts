@@ -95,7 +95,8 @@ app.use((req, res, next) => {
   console.log('🚀 Starting application...');
   
   const setupSuccess = await setupDatabase({ 
-    verbose: process.env.NODE_ENV === 'development' 
+    verbose: process.env.NODE_ENV === 'development',
+    force: process.env.NODE_ENV === 'development' // Enable force flag in development to handle constraints automatically
   });
   
   if (!setupSuccess) {

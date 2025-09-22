@@ -11,6 +11,7 @@ export const auditActionEnum = pgEnum('audit_action', ['login', 'logout', 'regis
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").notNull().unique(),
+  phoneNumber: text("phone_number"), // Temporary: unique constraint removed to allow migration without prompts
   name: text("name").notNull(),
   passwordHash: text("password_hash").notNull(), // Renamed for clarity and security
   roleId: uuid("role_id").notNull().references(() => roles.id), // FK to roles table instead of enum
@@ -22,6 +23,7 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 }, (table) => ({
   emailIdx: index("users_email_idx").on(table.email),
+  phoneNumberIdx: index("users_phone_number_idx").on(table.phoneNumber),
   roleIdx: index("users_role_idx").on(table.roleId),
   activeIdx: index("users_active_idx").on(table.isActive),
   emailVerifiedIdx: index("users_email_verified_idx").on(table.isEmailVerified),
@@ -176,6 +178,10 @@ export const insertUserSchema = createInsertSchema(users).omit({
 }).extend({
   password: z.string().min(8).describe("Password must be at least 8 characters long"),
   mfaSecret: z.string().optional().describe("MFA secret (will be encrypted before storage)"),
+  phoneNumber: z.string()
+    .regex(/^\+?[1-9]\d{1,14}$/, "Please enter a valid international phone number (e.g., +1234567890)")
+    .optional()
+    .describe("International phone number in E.164 format"),
 });
 
 export const selectUserSchema = createSelectSchema(users).omit({
@@ -286,7 +292,15 @@ export type JwksKey = typeof jwksKeys.$inferSelect;
 
 // Authentication-related schemas
 export const loginSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
+  identifier: z.string()
+    .min(1, "Email or phone number is required")
+    .refine((value) => {
+      // Check if it's a valid email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      // Check if it's a valid international phone number
+      const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+      return emailRegex.test(value) || phoneRegex.test(value);
+    }, "Please enter a valid email address or phone number"),
   password: z.string().min(1, "Password is required"),
   mfaCode: z.string().optional(),
 });

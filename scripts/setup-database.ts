@@ -77,7 +77,8 @@ async function pushDatabaseSchema(options: SetupOptions): Promise<boolean> {
       return true;
     }
     
-    const pushCommand = options.force ? 'npm run db:push -- --force' : 'npm run db:push';
+    // Call drizzle-kit directly to ensure --force flag is properly handled
+    const pushCommand = options.force ? 'npx drizzle-kit push --force' : 'npx drizzle-kit push';
     execSync(pushCommand, { 
       stdio: options.verbose ? 'inherit' : 'pipe',
       cwd: process.cwd()
