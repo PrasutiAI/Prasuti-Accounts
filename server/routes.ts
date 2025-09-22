@@ -42,7 +42,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Basic metrics endpoint (secured)
   app.get('/metrics', 
     authenticateToken,
-    requireRole(['admin']),
+    requirePermissions('system', 'read'),
     async (req, res) => {
     try {
       const metrics = await storage.getSystemMetrics();
@@ -340,7 +340,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   userRouter.post('/',
     authenticateToken,
-    requireRole(['admin']),
+    requirePermissions('users', 'create'),
     validateBody(registerSchema.extend({
       sendWelcomeEmail: z.boolean().optional(),
       requireMfa: z.boolean().optional(),
@@ -379,7 +379,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   userRouter.delete('/:id',
     authenticateToken,
-    requireRole(['admin']),
+    requirePermissions('users', 'delete'),
     validateParams(z.object({ id: commonSchemas.uuid })),
     async (req, res) => {
       try {
@@ -402,7 +402,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   adminRouter.get('/users',
     authenticateToken,
-    requireRole(['admin']),
+    requirePermissions('users', 'read'),
     validateQuery(commonSchemas.pagination as any),
     async (req, res) => {
       try {
@@ -417,7 +417,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   adminRouter.get('/stats',
     authenticateToken,
-    requireRole(['admin']),
+    requirePermissions('system', 'read'),
     async (req, res) => {
       try {
         const [userStats, systemMetrics] = await Promise.all([
@@ -437,7 +437,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   adminRouter.post('/keys/rotate',
     authenticateToken,
-    requireRole(['admin']),
+    requirePermissions('system', 'admin'),
     async (req, res) => {
       try {
         const result = await jwtService.rotateKeys();
@@ -575,7 +575,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   auditRouter.get('/',
     authenticateToken,
-    requireRole(['admin']),
+    requirePermissions('audit', 'read'),
     validateQuery(commonSchemas.pagination as any),
     async (req, res) => {
       try {
@@ -590,7 +590,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   auditRouter.get('/security-events',
     authenticateToken,
-    requireRole(['admin']),
+    requirePermissions('audit', 'read'),
     async (req, res) => {
       try {
         const events = await auditService.getSecurityEvents();

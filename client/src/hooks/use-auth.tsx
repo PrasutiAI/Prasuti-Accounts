@@ -3,11 +3,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { jwtDecode } from 'jwt-decode';
 import { apiRequest } from '@/lib/queryClient';
 
+interface Role {
+  id: string;
+  name: string;
+  permissions: string[];
+  description?: string;
+  isActive: boolean;
+}
+
 interface User {
   id: string;
   email: string;
   name: string;
-  role: string;
+  role: Role;
 }
 
 interface AuthContextType {
@@ -20,37 +28,105 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Default role permissions based on role hierarchy
+const getRolePermissions = (roleName: string): string[] => {
+  const rolePermissions: Record<string, string[]> = {
+    admin: ['*'], // Admin has all permissions
+    developer: [
+      'users:read', 'users:update',
+      'roles:read', 'clients:*', 
+      'api-keys:*', 'audit:read',
+      'settings:read', 'settings:update'
+    ],
+    user: [
+      'dashboard:read', 'profile:*',
+      'settings:read'
+    ],
+    guest: [
+      'dashboard:read'
+    ],
+  };
+  
+  return rolePermissions[roleName] || rolePermissions['guest'];
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const queryClient = useQueryClient();
 
+  // Function to fetch user with full role data
+  const fetchUserWithRole = async (userId: string): Promise<User | null> => {
+    try {
+      const response = await fetch(`/api/users/${userId}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+        },
+      });
+      
+      if (response.ok) {
+        const userData = await response.json();
+        return {
+          id: userData.id,
+          email: userData.email,
+          name: userData.name,
+          role: userData.role || {
+            id: 'default-user-role',
+            name: 'user',
+            permissions: getRolePermissions('user'),
+            isActive: true,
+          },
+        };
+      }
+    } catch (error) {
+      console.error('Failed to fetch user with role:', error);
+    }
+    return null;
+  };
+
   // Check for existing token on mount
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      try {
-        const decoded = jwtDecode(token);
-        const now = Date.now() / 1000;
-        
-        if (decoded.exp && decoded.exp > now) {
-          setUser({
-            id: decoded.sub as string,
-            email: (decoded as any).email,
-            name: (decoded as any).name,
-            role: (decoded as any).role,
-          });
-        } else {
-          // Token expired, try to refresh
-          handleTokenRefresh();
+    const initAuth = async () => {
+      const token = localStorage.getItem('accessToken');
+      if (token) {
+        try {
+          const decoded = jwtDecode(token);
+          const now = Date.now() / 1000;
+          
+          if (decoded.exp && decoded.exp > now) {
+            // Try to fetch full user data with role
+            const userData = await fetchUserWithRole(decoded.sub as string);
+            
+            if (userData) {
+              setUser(userData);
+            } else {
+              // Fallback to token data if API call fails
+              setUser({
+                id: decoded.sub as string,
+                email: (decoded as any).email,
+                name: (decoded as any).name,
+                role: {
+                  id: 'temp-role-id',
+                  name: (decoded as any).role || 'user',
+                  permissions: getRolePermissions((decoded as any).role || 'user'),
+                  isActive: true,
+                },
+              });
+            }
+          } else {
+            // Token expired, try to refresh
+            await handleTokenRefresh();
+          }
+        } catch (error) {
+          console.error('Invalid token:', error);
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
         }
-      } catch (error) {
-        console.error('Invalid token:', error);
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
       }
-    }
-    setIsLoading(false);
+      setIsLoading(false);
+    };
+
+    initAuth();
   }, []);
 
   const handleTokenRefresh = async () => {
@@ -73,12 +149,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('refreshToken', data.refresh_token);
 
         const decoded = jwtDecode(data.access_token);
-        setUser({
-          id: decoded.sub as string,
-          email: (decoded as any).email,
-          name: (decoded as any).name,
-          role: (decoded as any).role,
-        });
+        
+        // Try to fetch full user data with role
+        const userData = await fetchUserWithRole(decoded.sub as string);
+        
+        if (userData) {
+          setUser(userData);
+        } else {
+          // Fallback to token data if API call fails
+          setUser({
+            id: decoded.sub as string,
+            email: (decoded as any).email,
+            name: (decoded as any).name,
+            role: {
+              id: 'temp-role-id',
+              name: (decoded as any).role || 'user',
+              permissions: getRolePermissions((decoded as any).role || 'user'),
+              isActive: true,
+            },
+          });
+        }
       } else {
         throw new Error('Refresh failed');
       }
@@ -98,7 +188,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('accessToken', data.accessToken);
       localStorage.setItem('refreshToken', data.refreshToken);
 
-      setUser(data.user);
+      // Ensure the user object has proper role data
+      const userWithRole = {
+        ...data.user,
+        role: data.user.role || {
+          id: 'default-user-role',
+          name: 'user',
+          permissions: getRolePermissions('user'),
+          isActive: true,
+        },
+      };
+
+      setUser(userWithRole);
       queryClient.invalidateQueries();
     } catch (error) {
       throw error;
@@ -147,4 +248,3 @@ export function useAuth() {
   }
   return context;
 }
-

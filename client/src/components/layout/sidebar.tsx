@@ -13,6 +13,8 @@ import {
   HelpCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import ProtectedComponent from "@/components/auth/ProtectedComponent";
+import { usePermissions } from "@/hooks/use-permissions";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -21,18 +23,67 @@ interface SidebarProps {
 }
 
 const navigation = [
-  { name: "Dashboard", href: "/", icon: BarChart3, id: "dashboard" },
-  { name: "Users", href: "/users", icon: Users, id: "users" },
-  { name: "Roles & Permissions", href: "/roles", icon: UserCheck, id: "roles" },
-  { name: "API Keys", href: "/api-keys", icon: Key, id: "api-keys" },
-  { name: "MFA Settings", href: "/mfa", icon: Smartphone, id: "mfa" },
-  { name: "Social Login", href: "/social", icon: LinkIcon, id: "social" },
-  { name: "Audit Logs", href: "/audit", icon: History, id: "audit" },
-  { name: "System Settings", href: "/settings", icon: Settings, id: "settings" },
+  { 
+    name: "Dashboard", 
+    href: "/", 
+    icon: BarChart3, 
+    id: "dashboard",
+    roles: ['admin', 'developer', 'user', 'guest'],
+    permissions: [] // Everyone with access can see dashboard
+  },
+  { 
+    name: "Users", 
+    href: "/users", 
+    icon: Users, 
+    id: "users",
+    roles: ['admin', 'developer'],
+    permissions: ['users:read']
+  },
+  { 
+    name: "Roles & Permissions", 
+    href: "/roles", 
+    icon: UserCheck, 
+    id: "roles",
+    roles: ['admin'],
+    permissions: ['roles:read']
+  },
+  { 
+    name: "API Keys", 
+    href: "/api-keys", 
+    icon: Key, 
+    id: "api-keys",
+    roles: ['admin', 'developer'],
+    permissions: ['api-keys:read']
+  },
+  { 
+    name: "MFA Settings", 
+    href: "/mfa", 
+    icon: Smartphone, 
+    id: "mfa",
+    roles: ['admin', 'developer', 'user'],
+    permissions: ['settings:read']
+  },
+  { 
+    name: "Audit Logs", 
+    href: "/audit", 
+    icon: History, 
+    id: "audit",
+    roles: ['admin', 'developer'],
+    permissions: ['audit:read']
+  },
+  { 
+    name: "System Settings", 
+    href: "/settings", 
+    icon: Settings, 
+    id: "settings",
+    roles: ['admin', 'developer', 'user'],
+    permissions: ['settings:read']
+  },
 ];
 
 export default function Sidebar({ collapsed, currentPage = "dashboard" }: SidebarProps) {
   const [location] = useLocation();
+  const { hasRole, hasAnyPermission } = usePermissions();
 
   return (
     <div className={cn(
@@ -62,21 +113,28 @@ export default function Sidebar({ collapsed, currentPage = "dashboard" }: Sideba
             (item.href !== "/" && location.startsWith(item.href));
           
           return (
-            <Link key={item.id} href={item.href}>
-              <Button
-                variant={isActive ? "secondary" : "ghost"}
-                className={cn(
-                  "w-full justify-start",
-                  isActive && "bg-accent text-accent-foreground font-medium"
-                )}
-                data-testid={`nav-${item.id}`}
-              >
-                <item.icon className="h-5 w-5" />
-                {!collapsed && (
-                  <span className="sidebar-text ml-3">{item.name}</span>
-                )}
-              </Button>
-            </Link>
+            <ProtectedComponent
+              key={item.id}
+              requiredRoles={item.roles}
+              requiredPermissions={item.permissions.length > 0 ? item.permissions : undefined}
+              hideOnError={true}
+            >
+              <Link href={item.href}>
+                <Button
+                  variant={isActive ? "secondary" : "ghost"}
+                  className={cn(
+                    "w-full justify-start",
+                    isActive && "bg-accent text-accent-foreground font-medium"
+                  )}
+                  data-testid={`nav-${item.id}`}
+                >
+                  <item.icon className="h-5 w-5" />
+                  {!collapsed && (
+                    <span className="sidebar-text ml-3">{item.name}</span>
+                  )}
+                </Button>
+              </Link>
+            </ProtectedComponent>
           );
         })}
       </nav>

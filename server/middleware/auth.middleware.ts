@@ -11,6 +11,8 @@ declare global {
         email: string;
         name: string;
         role: string;
+        roleId: string;
+        permissions: string[];
       };
     }
   }
@@ -33,11 +35,16 @@ export async function authenticateToken(req: Request, res: Response, next: NextF
       return res.status(401).json({ message: 'User not found or inactive' });
     }
 
+    // Get full user with role information for permission checks
+    const userRole = await storage.getRole(user.roleId);
+    
     req.user = {
       id: payload.sub,
       email: payload.email,
       name: payload.name,
-      role: payload.role,
+      role: userRole?.name || 'guest', // SECURITY FIX: Use database role name instead of JWT payload
+      roleId: user.roleId,
+      permissions: userRole?.permissions || [],
     };
 
     next();
@@ -55,7 +62,11 @@ export function requireRole(roles: string | string[]) {
     const allowedRoles = Array.isArray(roles) ? roles : [roles];
     
     if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({ message: 'Insufficient permissions' });
+      return res.status(403).json({ 
+        message: 'Insufficient permissions',
+        required: allowedRoles,
+        current: req.user.role
+      });
     }
 
     next();
@@ -68,21 +79,14 @@ export function requirePermissions(resource: string, action: string) {
       return res.status(401).json({ message: 'Authentication required' });
     }
 
-    // For now, implement basic role-based permissions
-    // In production, you'd check against the permissions table
-    const rolePermissions: Record<string, string[]> = {
-      admin: ['*'], // Admin has all permissions
-      developer: ['users:read', 'clients:*', 'keys:read'],
-      user: ['users:read-own', 'profile:*'],
-      guest: ['users:read-own'],
-    };
-
-    const userPermissions = rolePermissions[req.user.role] || [];
+    // Use actual role permissions from database
+    const userPermissions = (req.user as any).permissions || [];
     const requiredPermission = `${resource}:${action}`;
     
+    // Check for exact permission match or wildcards
     const hasPermission = userPermissions.includes('*') || 
                          userPermissions.includes(requiredPermission) ||
-                         userPermissions.some(perm => {
+                         userPermissions.some((perm: string) => {
                            if (perm.endsWith(':*')) {
                              const permResource = perm.split(':')[0];
                              return permResource === resource;
@@ -112,11 +116,16 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
       const user = await storage.getUser(payload.sub);
       
       if (user && user.isActive) {
+        // Get full user with role information for permission checks
+        const userRole = await storage.getRole(user.roleId);
+        
         req.user = {
           id: payload.sub,
           email: payload.email,
           name: payload.name,
-          role: payload.role,
+          role: userRole?.name || 'guest', // SECURITY FIX: Use database role name instead of JWT payload
+          roleId: user.roleId,
+          permissions: userRole?.permissions || [],
         };
       }
     } catch (error) {
