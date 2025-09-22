@@ -10,7 +10,7 @@ export class AuthService {
   private readonly saltRounds = 12;
   private readonly refreshTokenTtl = 30 * 24 * 60 * 60 * 1000; // 30 days
 
-  async register(userData: RegisterRequest): Promise<{ user: Omit<User, 'passwordHash'>, verificationToken: string }> {
+  async register(userData: RegisterRequest): Promise<{ user: Omit<User, 'passwordHash'>, message: string }> {
     // Check if user already exists
     const existingUser = await storage.getUserByEmail(userData.email);
     if (existingUser) {
@@ -41,7 +41,8 @@ export class AuthService {
     });
 
     // Send verification email
-    const verificationUrl = `${process.env.VITE_APP_URL || 'http://localhost:5000'}/verify-email?token=${verificationToken}`;
+    const baseUrl = process.env.APP_URL || process.env.VITE_APP_URL || 'http://localhost:5000';
+    const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
     const emailSent = await emailService.sendVerificationEmail({
       to: user.email,
       name: user.name,
@@ -59,7 +60,12 @@ export class AuthService {
     });
 
     const { passwordHash: _, mfaSecretEncrypted: __, ...userWithoutSensitiveData } = user;
-    return { user: userWithoutSensitiveData as any, verificationToken };
+    return { 
+      user: userWithoutSensitiveData as any, 
+      message: emailSent 
+        ? 'Registration successful. Please check your email for verification instructions.'
+        : 'Registration successful. Email verification could not be sent - please contact support.'
+    };
   }
 
   async login(credentials: LoginRequest, ipAddress?: string, userAgent?: string): Promise<{
@@ -217,11 +223,14 @@ export class AuthService {
     });
   }
 
-  async requestPasswordReset(email: string): Promise<string> {
+  async requestPasswordReset(email: string): Promise<{ success: boolean, message: string }> {
     const user = await storage.getUserByEmail(email);
     if (!user) {
-      // Still return a token to avoid email enumeration, but it won't work
-      return cryptoUtils.generatePasswordResetToken();
+      // Return success to avoid email enumeration attacks
+      return {
+        success: true,
+        message: 'If an account with that email exists, a password reset link has been sent.'
+      };
     }
 
     // Generate reset token
@@ -233,7 +242,8 @@ export class AuthService {
     });
 
     // Send password reset email
-    const resetUrl = `${process.env.VITE_APP_URL || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
+    const baseUrl = process.env.APP_URL || process.env.VITE_APP_URL || 'http://localhost:5000';
+    const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
     const emailSent = await emailService.sendPasswordResetEmail({
       to: user.email,
       name: user.name,
@@ -250,7 +260,10 @@ export class AuthService {
       },
     });
 
-    return resetToken;
+    return {
+      success: true,
+      message: 'If an account with that email exists, a password reset link has been sent.'
+    };
   }
 
   async resetPassword(token: string, newPassword: string): Promise<void> {

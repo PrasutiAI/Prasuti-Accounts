@@ -107,13 +107,8 @@ idm_failed_logins_24h ${failedLogins.count}
       try {
         const result = await authService.register(req.body);
         
-        // In production, send email verification
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('Email verification token (dev only):', result.verificationToken);
-        }
-        
         res.status(201).json({
-          message: 'User registered successfully. Please check your email for verification.',
+          message: result.message,
           verificationSent: true,
         });
       } catch (error) {
@@ -175,14 +170,8 @@ idm_failed_logins_24h ${failedLogins.count}
     validateBody(z.object({ email: commonSchemas.email })),
     async (req, res) => {
       try {
-        const resetToken = await authService.requestPasswordReset(req.body.email);
-        
-        // In production, send email with reset link
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('Password reset token (dev only):', resetToken);
-        }
-        
-        res.json({ message: 'Password reset instructions sent to your email' });
+        const result = await authService.requestPasswordReset(req.body.email);
+        res.json({ message: result.message });
       } catch (error) {
         res.status(400).json({ message: error instanceof Error ? error.message : String(error) });
       }
