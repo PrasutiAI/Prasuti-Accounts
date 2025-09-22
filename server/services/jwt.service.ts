@@ -50,13 +50,32 @@ export class JwtService {
       aud: this.audience,
     };
 
-    const decryptedPrivateKey = await cryptoUtils.decrypt(activeKey.privateKeyEncrypted);
-    
-    return jwt.sign(payload, decryptedPrivateKey, {
-      algorithm: 'RS256',
-      keyid: activeKey.kid,
-      expiresIn: this.accessTokenTtl,
-    } as jwt.SignOptions);
+    try {
+      const decryptedPrivateKey = await cryptoUtils.decrypt(activeKey.privateKeyEncrypted);
+      
+      return jwt.sign(payload, decryptedPrivateKey, {
+        algorithm: 'RS256',
+        keyid: activeKey.kid,
+        expiresIn: this.accessTokenTtl,
+      } as jwt.SignOptions);
+    } catch (decryptionError) {
+      // If decryption fails (e.g., encryption key changed), regenerate JWT keys
+      await this.rotateKeys();
+      
+      // Get the new active key and try again
+      const newActiveKey = await this.getActiveSigningKey();
+      if (!newActiveKey) {
+        throw new Error('No active signing key found after regeneration');
+      }
+      
+      const decryptedPrivateKey = await cryptoUtils.decrypt(newActiveKey.privateKeyEncrypted);
+      
+      return jwt.sign(payload, decryptedPrivateKey, {
+        algorithm: 'RS256',
+        keyid: newActiveKey.kid,
+        expiresIn: this.accessTokenTtl,
+      } as jwt.SignOptions);
+    }
   }
 
   async verifyToken(token: string): Promise<JwtPayload> {
