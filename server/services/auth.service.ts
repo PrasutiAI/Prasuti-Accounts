@@ -3,6 +3,7 @@ import { storage } from '../storage';
 import { jwtService } from './jwt.service';
 import { auditService } from './audit.service';
 import { cryptoUtils } from '../utils/crypto';
+import { emailService } from './email.service';
 import type { LoginRequest, RegisterRequest, User } from '@shared/schema';
 
 export class AuthService {
@@ -39,11 +40,22 @@ export class AuthService {
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
     });
 
+    // Send verification email
+    const verificationUrl = `${process.env.VITE_APP_URL || 'http://localhost:5000'}/verify-email?token=${verificationToken}`;
+    const emailSent = await emailService.sendVerificationEmail({
+      to: user.email,
+      name: user.name,
+      verificationUrl
+    });
+
     // Log audit event
     await storage.createUserAuditLog({
       userId: user.id,
       action: 'register',
-      details: { email: user.email },
+      details: { 
+        email: user.email,
+        verificationEmailSent: emailSent 
+      },
     });
 
     const { passwordHash: _, mfaSecretEncrypted: __, ...userWithoutSensitiveData } = user;
@@ -218,6 +230,24 @@ export class AuthService {
       userId: user.id,
       token: resetToken, // Will be hashed in storage layer
       expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+    });
+
+    // Send password reset email
+    const resetUrl = `${process.env.VITE_APP_URL || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
+    const emailSent = await emailService.sendPasswordResetEmail({
+      to: user.email,
+      name: user.name,
+      resetUrl
+    });
+
+    // Log audit event
+    await storage.createUserAuditLog({
+      userId: user.id,
+      action: 'password_reset_requested',
+      details: { 
+        email: user.email,
+        resetEmailSent: emailSent 
+      },
     });
 
     return resetToken;
