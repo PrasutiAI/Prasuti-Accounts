@@ -572,8 +572,15 @@ idm_failed_logins_24h ${failedLogins.count}
   app.use('/api/audit', auditRouter);
 
   // OpenAPI/Swagger documentation
-  app.get('/api/openapi.json', (req, res) => {
-    res.json(require('../openapi.json'));
+  app.get('/api/openapi.json', async (req, res) => {
+    try {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const openapi = await fs.readFile(path.join(process.cwd(), 'openapi.json'), 'utf-8');
+      res.json(JSON.parse(openapi));
+    } catch (error) {
+      res.status(404).json({ message: 'OpenAPI documentation not found' });
+    }
   });
 
   const httpServer = createServer(app);

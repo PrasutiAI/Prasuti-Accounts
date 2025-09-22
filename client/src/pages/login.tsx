@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -24,6 +24,17 @@ export default function Login() {
   const [, setLocation] = useLocation();
   const [requiresMfa, setRequiresMfa] = useState(false);
   const { toast } = useToast();
+  
+  // Check for registration success message
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('registered') === 'true') {
+      toast({
+        title: "Registration successful",
+        description: "Please check your email for verification instructions before signing in.",
+      });
+    }
+  }, [toast]);
 
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -161,10 +172,20 @@ export default function Login() {
             </form>
           </Form>
 
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            <Button variant="link" className="p-0 h-auto font-normal">
-              Forgot your password?
-            </Button>
+          <div className="mt-6 text-center text-sm text-muted-foreground space-y-2">
+            <div>
+              <Button variant="link" className="p-0 h-auto font-normal">
+                Forgot your password?
+              </Button>
+            </div>
+            <div>
+              Don't have an account?{" "}
+              <Link href="/register">
+                <Button variant="link" className="p-0 h-auto font-normal" data-testid="link-register">
+                  Sign up
+                </Button>
+              </Link>
+            </div>
           </div>
         </CardContent>
       </Card>

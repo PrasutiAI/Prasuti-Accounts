@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, generateKeyPair, randomBytes } from 'crypto';
+import { createCipheriv, createDecipheriv, generateKeyPair, randomBytes, createHash } from 'crypto';
 import { promisify } from 'util';
 
 const generateKeyPairAsync = promisify(generateKeyPair);
@@ -81,8 +81,7 @@ class CryptoUtils {
 
   hashApiKey(apiKey: string): string {
     // Use a simple hash for API keys (in production, use bcrypt or similar)
-    const crypto = require('crypto');
-    return crypto.createHash('sha256').update(apiKey).digest('hex');
+    return createHash('sha256').update(apiKey).digest('hex');
   }
 
   verifyApiKey(apiKey: string, hashedKey: string): boolean {
@@ -92,8 +91,7 @@ class CryptoUtils {
 
   // Token hashing for security (SHA-256)
   hashToken(token: string): string {
-    const crypto = require('crypto');
-    return crypto.createHash('sha256').update(token).digest('hex');
+    return createHash('sha256').update(token).digest('hex');
   }
 
   verifyToken(token: string, hashedToken: string): boolean {
