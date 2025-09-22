@@ -88,64 +88,84 @@ export default function Dashboard() {
         <Header onSidebarToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
         
         <main className="flex-1 overflow-auto">
-          {/* Hero Section */}
-          <section className="bg-gradient-to-br from-primary/5 via-background to-secondary/5 px-6 py-12 border-b">
-            <div className="max-w-6xl mx-auto">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-                <div className="space-y-6">
-                  <div className="flex items-center space-x-2">
-                    <Shield className="h-8 w-8 text-primary" />
-                    <span className="text-2xl font-bold text-foreground">Prasuti.AI IDM</span>
+          {/* Enhanced Hero Section */}
+          <section className="bg-gradient-to-br from-primary/8 via-background to-secondary/8 px-6 py-16 border-b border-border/50 relative overflow-hidden">
+            {/* Background Pattern */}
+            <div className="absolute inset-0 opacity-30">
+              <div className="absolute top-0 -left-4 w-72 h-72 bg-primary/5 rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
+              <div className="absolute top-0 -right-4 w-72 h-72 bg-secondary/5 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
+              <div className="absolute -bottom-8 left-20 w-72 h-72 bg-accent/5 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
+            </div>
+            
+            <div className="max-w-6xl mx-auto relative z-10">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                <div className="space-y-8 animate-fade-in">
+                  <div className="flex items-center space-x-3 group">
+                    <div className="w-12 h-12 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105">
+                      <Shield className="h-7 w-7 text-primary-foreground drop-shadow-sm" />
+                    </div>
+                    <span className="text-3xl font-bold text-foreground bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text">Prasuti.AI IDM</span>
                   </div>
-                  <div className="space-y-4">
-                    <h1 className="text-4xl font-bold text-foreground leading-tight" data-testid="hero-title">
-                      Enterprise Identity & Access Management
+                  <div className="space-y-6">
+                    <h1 className="text-4xl md:text-5xl font-bold text-foreground leading-tight" data-testid="hero-title">
+                      Enterprise Identity & <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/70">Access Management</span>
                     </h1>
-                    <p className="text-xl text-muted-foreground leading-relaxed" data-testid="hero-description">
+                    <p className="text-xl text-muted-foreground/90 leading-relaxed font-medium" data-testid="hero-description">
                       Secure, scalable, and comprehensive identity management solution 
                       for modern applications. Built with enterprise security at its core.
                     </p>
                   </div>
                   
-                  <div className="flex flex-wrap gap-3">
-                    <Badge variant="secondary" className="px-3 py-1">
-                      <CheckCircle className="h-4 w-4 mr-1" />
+                  <div className="flex flex-wrap gap-4">
+                    <Badge variant="secondary" className="px-4 py-2 text-sm font-medium hover-lift transition-all duration-300 hover:shadow-md">
+                      <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
                       Production Ready
                     </Badge>
-                    <Badge variant="secondary" className="px-3 py-1">
-                      <Lock className="h-4 w-4 mr-1" />
+                    <Badge variant="secondary" className="px-4 py-2 text-sm font-medium hover-lift transition-all duration-300 hover:shadow-md">
+                      <Lock className="h-4 w-4 mr-2 text-primary" />
                       Enterprise Security
                     </Badge>
-                    <Badge variant="secondary" className="px-3 py-1">
-                      <Zap className="h-4 w-4 mr-1" />
+                    <Badge variant="secondary" className="px-4 py-2 text-sm font-medium hover-lift transition-all duration-300 hover:shadow-md">
+                      <Zap className="h-4 w-4 mr-2 text-yellow-600" />
                       High Performance
                     </Badge>
                   </div>
                 </div>
                 
-                <div className="lg:pl-8">
-                  <div className="bg-card border rounded-lg p-6 shadow-sm">
-                    <h3 className="text-lg font-semibold text-foreground mb-4">System Overview</h3>
+                <div className="lg:pl-8 animate-fade-in animation-delay-300">
+                  <div className="bg-card/80 backdrop-blur-sm border border-border/60 rounded-xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
+                    <h3 className="text-xl font-bold text-foreground mb-6 flex items-center">
+                      <BarChart3 className="h-6 w-6 text-primary mr-3" />
+                      System Overview
+                    </h3>
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="text-center p-3 bg-muted/50 rounded-lg">
-                        <Users className="h-8 w-8 text-primary mx-auto mb-2" />
-                        <div className="text-2xl font-bold text-foreground">{systemStats?.system?.totalUsers || '0'}</div>
-                        <div className="text-sm text-muted-foreground">Total Users</div>
+                      <div className="group text-center p-4 bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl hover-lift hover:shadow-md transition-all duration-300 border border-primary/20">
+                        <div className="w-12 h-12 bg-gradient-to-br from-primary to-primary/80 rounded-full mx-auto mb-3 flex items-center justify-center shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all duration-300">
+                          <Users className="h-6 w-6 text-primary-foreground" />
+                        </div>
+                        <div className="text-2xl font-bold text-foreground mb-1">{systemStats?.system?.totalUsers || '0'}</div>
+                        <div className="text-sm text-muted-foreground font-medium">Total Users</div>
                       </div>
-                      <div className="text-center p-3 bg-muted/50 rounded-lg">
-                        <Globe className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                        <div className="text-2xl font-bold text-foreground">{systemStats?.system?.activeUsers || '0'}</div>
-                        <div className="text-sm text-muted-foreground">Active Sessions</div>
+                      <div className="group text-center p-4 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/30 rounded-xl hover-lift hover:shadow-md transition-all duration-300 border border-green-200 dark:border-green-800">
+                        <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-full mx-auto mb-3 flex items-center justify-center shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all duration-300">
+                          <Globe className="h-6 w-6 text-white" />
+                        </div>
+                        <div className="text-2xl font-bold text-foreground mb-1">{systemStats?.system?.activeUsers || '0'}</div>
+                        <div className="text-sm text-muted-foreground font-medium">Active Sessions</div>
                       </div>
-                      <div className="text-center p-3 bg-muted/50 rounded-lg">
-                        <Key className="h-8 w-8 text-yellow-600 mx-auto mb-2" />
-                        <div className="text-2xl font-bold text-foreground">{systemStats?.system?.activeKeys || '0'}</div>
-                        <div className="text-sm text-muted-foreground">API Keys</div>
+                      <div className="group text-center p-4 bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/30 rounded-xl hover-lift hover:shadow-md transition-all duration-300 border border-yellow-200 dark:border-yellow-800">
+                        <div className="w-12 h-12 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-full mx-auto mb-3 flex items-center justify-center shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all duration-300">
+                          <Key className="h-6 w-6 text-white" />
+                        </div>
+                        <div className="text-2xl font-bold text-foreground mb-1">{systemStats?.system?.activeKeys || '0'}</div>
+                        <div className="text-sm text-muted-foreground font-medium">API Keys</div>
                       </div>
-                      <div className="text-center p-3 bg-muted/50 rounded-lg">
-                        <Server className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-                        <div className="text-2xl font-bold text-green-600">Online</div>
-                        <div className="text-sm text-muted-foreground">System Status</div>
+                      <div className="group text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/30 rounded-xl hover-lift hover:shadow-md transition-all duration-300 border border-blue-200 dark:border-blue-800">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full mx-auto mb-3 flex items-center justify-center shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all duration-300">
+                          <Server className="h-6 w-6 text-white" />
+                        </div>
+                        <div className="text-2xl font-bold text-green-600 mb-1">Online</div>
+                        <div className="text-sm text-muted-foreground font-medium">System Status</div>
                       </div>
                     </div>
                   </div>

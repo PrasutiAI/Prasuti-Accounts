@@ -81,18 +81,27 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center">
-              <Shield className="h-6 w-6 text-primary-foreground" />
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4 relative overflow-hidden">
+      {/* Background Pattern */}
+      <div className="absolute inset-0 opacity-20">
+        <div className="absolute top-0 -left-4 w-72 h-72 bg-primary/10 rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
+        <div className="absolute top-0 -right-4 w-72 h-72 bg-secondary/10 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-8 left-20 w-72 h-72 bg-accent/10 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
+      </div>
+      
+      <Card className="w-full max-w-md shadow-2xl border-border/60 bg-card/95 backdrop-blur-sm animate-scale-in">
+        <CardHeader className="space-y-6 text-center pb-8">
+          <div className="flex justify-center mb-2">
+            <div className="w-16 h-16 bg-gradient-to-br from-primary via-primary/90 to-primary/80 rounded-2xl flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 group">
+              <Shield className="h-8 w-8 text-primary-foreground drop-shadow-sm group-hover:drop-shadow-md transition-all duration-300" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-semibold">Welcome back</CardTitle>
-          <CardDescription>
-            Sign in to your Prasuti.AI Hub account
-          </CardDescription>
+          <div className="space-y-3">
+            <CardTitle className="text-3xl font-bold text-foreground">Welcome back</CardTitle>
+            <CardDescription className="text-base text-muted-foreground/80 font-medium">
+              Sign in to your Prasuti.AI Hub account
+            </CardDescription>
+          </div>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -157,27 +166,32 @@ export default function Login() {
 
               <Button 
                 type="submit" 
-                className="w-full"
+                className="w-full h-12 text-base font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80"
                 disabled={loginMutation.isPending}
                 data-testid="button-login"
               >
-                {loginMutation.isPending ? "Signing in..." : "Sign In"}
+                {loginMutation.isPending ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span>Signing in...</span>
+                  </div>
+                ) : "Sign In"}
               </Button>
             </form>
           </Form>
 
-          <div className="mt-6 text-center text-sm text-muted-foreground space-y-2">
+          <div className="mt-8 text-center text-sm text-muted-foreground space-y-3">
             <div>
               <Link href="/forgot-password">
-                <Button variant="link" className="p-0 h-auto font-normal" data-testid="link-forgot-password">
+                <Button variant="link" className="p-0 h-auto font-medium text-primary hover:text-primary/80 transition-colors duration-200" data-testid="link-forgot-password">
                   Forgot your password?
                 </Button>
               </Link>
             </div>
-            <div>
-              Don't have an account?{" "}
+            <div className="flex items-center justify-center space-x-1">
+              <span>Don't have an account?</span>
               <Link href="/register">
-                <Button variant="link" className="p-0 h-auto font-normal" data-testid="link-register">
+                <Button variant="link" className="p-0 h-auto font-semibold text-primary hover:text-primary/80 transition-colors duration-200" data-testid="link-register">
                   Sign up
                 </Button>
               </Link>
