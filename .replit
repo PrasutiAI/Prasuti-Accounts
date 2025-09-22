@@ -48,3 +48,12 @@ author = "agent"
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
+
+[[workflows.workflow]]
+name = "Admin Seed"
+mode = "sequential"
+author = 47876038
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "tsx scripts/create-admin.ts ram.hebbal@gmail.com \"1qaz!QAZ\" \"Ram Hebbal\""
