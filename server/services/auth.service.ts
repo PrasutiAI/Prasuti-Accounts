@@ -92,8 +92,8 @@ export class AuthService {
       throw new Error('Invalid credentials');
     }
 
-    // Check if user is verified
-    if (!user.isEmailVerified) {
+    // Check if user is verified (relaxed in development)
+    if (!user.isEmailVerified && process.env.NODE_ENV === 'production') {
       throw new Error('Email not verified');
     }
 
