@@ -10,11 +10,9 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Shield, UserPlus } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { registerSchema as sharedRegisterSchema } from "@shared/schema";
 
-const registerSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters long"),
-  email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters long"),
+const registerSchema = sharedRegisterSchema.extend({
   confirmPassword: z.string().min(8, "Please confirm your password"),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
@@ -32,6 +30,7 @@ export default function Register() {
     defaultValues: {
       name: "",
       email: "",
+      phoneNumber: "",
       password: "",
       confirmPassword: "",
     },
@@ -93,6 +92,16 @@ export default function Register() {
         });
         toast({
           title: "Invalid name",
+          description: message,
+          variant: "destructive",
+        });
+      } else if (message.includes("phone") || message.includes("Phone")) {
+        form.setError("phoneNumber", {
+          type: "manual",
+          message: "Please enter a valid phone number",
+        });
+        toast({
+          title: "Invalid phone number",
           description: message,
           variant: "destructive",
         });
@@ -173,6 +182,25 @@ export default function Register() {
                       />
                     </FormControl>
                     <FormMessage data-testid="error-email" />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="phoneNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone Number (Optional)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="tel" 
+                        placeholder="Enter your phone number (e.g., +1234567890)"
+                        data-testid="input-phone-number"
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage data-testid="error-phone-number" />
                   </FormItem>
                 )}
               />

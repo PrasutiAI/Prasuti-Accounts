@@ -15,6 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -62,49 +63,77 @@ export default function Header({ onSidebarToggle }: HeaderProps) {
   const unreadNotifications = notifications?.filter((n: any) => !n.success)?.length || 0;
 
   return (
-    <header className="bg-card border-b border-border px-6 py-4">
+    <header className="bg-card border-b border-border px-4 md:px-6 py-4 shadow-sm">
       <div className="flex items-center justify-between">
         {/* Left side */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3 md:space-x-4">
           <Button 
             variant="ghost" 
             size="icon"
             onClick={onSidebarToggle}
+            className="transition-all duration-200 hover:bg-accent/80 hover:rotate-180"
             data-testid="button-sidebar-toggle"
+            aria-label="Toggle sidebar"
           >
-            <Menu className="h-5 w-5 text-muted-foreground" />
+            <Menu className="h-5 w-5 text-muted-foreground transition-transform duration-200" />
           </Button>
           
-          <div>
-            <h2 className="text-xl font-semibold text-foreground">Identity Management Dashboard</h2>
-            <p className="text-sm text-muted-foreground">Monitor and manage authentication services</p>
+          <div className="hidden sm:block">
+            <h2 className="text-lg md:text-xl font-semibold text-foreground transition-colors duration-200">
+              Identity Management Dashboard
+            </h2>
+            <p className="text-xs md:text-sm text-muted-foreground">
+              Monitor and manage authentication services
+            </p>
+          </div>
+          
+          {/* Mobile title */}
+          <div className="block sm:hidden">
+            <h2 className="text-lg font-semibold text-foreground">IDM Dashboard</h2>
           </div>
         </div>
 
         {/* Right side */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2 md:space-x-4">
           {/* Search */}
-          <div className="relative">
+          <div className="relative hidden md:block">
             <Input
               type="text"
               placeholder="Search users, roles..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-64 pl-10"
+              className="w-48 lg:w-64 pl-10 transition-all duration-200 focus:w-56 lg:focus:w-72"
               data-testid="input-header-search"
             />
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground transition-colors duration-200" />
           </div>
+          
+          {/* Mobile search button */}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="md:hidden transition-all duration-200 hover:bg-accent/80"
+            data-testid="button-mobile-search"
+            aria-label="Search"
+          >
+            <Search className="h-5 w-5 text-muted-foreground" />
+          </Button>
 
           {/* Notifications */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative" data-testid="button-notifications">
-                <Bell className="h-5 w-5 text-muted-foreground" />
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="relative transition-all duration-200 hover:bg-accent/80" 
+                data-testid="button-notifications"
+                aria-label={unreadNotifications > 0 ? `${unreadNotifications} new notifications` : "Notifications"}
+              >
+                <Bell className="h-5 w-5 text-muted-foreground transition-colors duration-200" />
                 {unreadNotifications > 0 && (
                   <Badge 
                     variant="destructive" 
-                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs flex items-center justify-center"
+                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs flex items-center justify-center animate-pulse"
                   >
                     {unreadNotifications}
                   </Badge>
@@ -139,17 +168,25 @@ export default function Header({ onSidebarToggle }: HeaderProps) {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* Theme Toggle */}
+          <ThemeToggle />
+
           {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="flex items-center space-x-3" data-testid="button-user-menu">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-primary text-primary-foreground">
+              <Button 
+                variant="ghost" 
+                className="flex items-center space-x-2 md:space-x-3 transition-all duration-200 hover:bg-accent/80 rounded-lg" 
+                data-testid="button-user-menu"
+                aria-label="User menu"
+              >
+                <Avatar className="h-8 w-8 transition-transform duration-200 hover:scale-105">
+                  <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground font-medium">
                     {user ? getInitials(user.name) : 'U'}
                   </AvatarFallback>
                 </Avatar>
-                <div className="text-left">
-                  <p className="text-sm font-medium text-foreground" data-testid="text-user-name">
+                <div className="text-left hidden sm:block">
+                  <p className="text-sm font-medium text-foreground transition-colors duration-200" data-testid="text-user-name">
                     {user?.name || 'User'}
                   </p>
                   <p className="text-xs text-muted-foreground" data-testid="text-user-email">

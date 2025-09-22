@@ -18,6 +18,7 @@ import Audit from "@/pages/audit";
 import NotFound from "@/pages/not-found";
 import { AuthProvider } from "@/hooks/use-auth";
 import { PermissionProvider } from "@/hooks/use-permissions";
+import { ThemeProvider } from "@/hooks/use-theme";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 
 function Router() {
@@ -97,14 +98,16 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <PermissionProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Router />
-          </TooltipProvider>
-        </PermissionProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <PermissionProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Router />
+            </TooltipProvider>
+          </PermissionProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

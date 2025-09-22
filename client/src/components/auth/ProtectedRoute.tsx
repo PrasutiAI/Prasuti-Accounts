@@ -71,11 +71,13 @@ function UnauthorizedPage({ requiredRoles, requiredPermissions, message }: Unaut
                 Go to Dashboard
               </Link>
             </Button>
-            <Button asChild variant="outline" data-testid="button-go-back">
-              <a href="javascript:history.back()">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Go Back
-              </a>
+            <Button 
+              variant="outline" 
+              onClick={() => window.history.back()}
+              data-testid="button-go-back"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Go Back
             </Button>
           </div>
           

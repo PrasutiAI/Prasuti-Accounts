@@ -260,7 +260,7 @@ idm_failed_logins_24h ${failedLogins.count}
           if (!username || !password) {
             return res.status(400).json({ error: 'username and password required' });
           }
-          const loginResult = await authService.login({ email: username, password });
+          const loginResult = await authService.login({ identifier: username, password });
           res.json({
             access_token: loginResult.accessToken,
             refresh_token: loginResult.refreshToken,

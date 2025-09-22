@@ -55,15 +55,26 @@ export class AuthService {
     accessToken: string;
     refreshToken: string;
   }> {
-    // Get user
-    const user = await storage.getUserByEmail(credentials.email);
+    // Determine if identifier is email or phone number
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const isEmail = emailRegex.test(credentials.identifier);
+    
+    // Get user by email or phone number
+    const user = isEmail 
+      ? await storage.getUserByEmail(credentials.identifier)
+      : await storage.getUserByPhoneNumber(credentials.identifier);
+      
     if (!user) {
       await storage.createUserAuditLog({
         userId: null,
         action: 'login',
         ipAddress,
         deviceInfo: userAgent,
-        details: { email: credentials.email, success: false, reason: 'user_not_found' },
+        details: { 
+          [isEmail ? 'email' : 'phoneNumber']: credentials.identifier, 
+          success: false, 
+          reason: 'user_not_found' 
+        },
       });
       throw new Error('Invalid credentials');
     }

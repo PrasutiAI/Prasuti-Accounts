@@ -87,17 +87,17 @@ export default function Sidebar({ collapsed, currentPage = "dashboard" }: Sideba
 
   return (
     <div className={cn(
-      "bg-card border-r border-border transition-all duration-300 flex flex-col",
+      "bg-card border-r border-border transition-all duration-300 flex flex-col shadow-sm",
       collapsed ? "sidebar-collapsed" : "sidebar-expanded"
     )}>
       {/* Header */}
       <div className="p-6 border-b border-border">
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary/80 rounded-lg flex items-center justify-center shadow-sm transition-transform hover:scale-105">
             <Shield className="h-4 w-4 text-primary-foreground" />
           </div>
           {!collapsed && (
-            <div className="sidebar-text">
+            <div className="sidebar-text transition-opacity duration-200">
               <h1 className="text-lg font-semibold text-foreground">Prasuti.AI</h1>
               <p className="text-xs text-muted-foreground">Identity Management</p>
             </div>
@@ -123,14 +123,21 @@ export default function Sidebar({ collapsed, currentPage = "dashboard" }: Sideba
                 <Button
                   variant={isActive ? "secondary" : "ghost"}
                   className={cn(
-                    "w-full justify-start",
-                    isActive && "bg-accent text-accent-foreground font-medium"
+                    "w-full justify-start relative transition-all duration-200 hover:bg-accent/80",
+                    isActive && "bg-primary/10 text-primary font-medium shadow-sm border border-primary/20",
+                    !isActive && "hover:text-accent-foreground hover:translate-x-1"
                   )}
                   data-testid={`nav-${item.id}`}
                 >
-                  <item.icon className="h-5 w-5" />
+                  <item.icon className={cn(
+                    "h-5 w-5 transition-colors duration-200",
+                    isActive ? "text-primary" : "text-muted-foreground"
+                  )} />
                   {!collapsed && (
-                    <span className="sidebar-text ml-3">{item.name}</span>
+                    <span className="sidebar-text ml-3 transition-opacity duration-200">{item.name}</span>
+                  )}
+                  {isActive && !collapsed && (
+                    <div className="absolute right-2 w-2 h-2 bg-primary rounded-full animate-pulse" />
                   )}
                 </Button>
               </Link>
@@ -140,16 +147,16 @@ export default function Sidebar({ collapsed, currentPage = "dashboard" }: Sideba
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-border">
+      <div className="p-4 border-t border-border bg-muted/30">
         <Link href="/docs">
           <Button
             variant="ghost"
-            className="w-full justify-start"
+            className="w-full justify-start transition-all duration-200 hover:bg-accent/60 hover:translate-x-1"
             data-testid="nav-docs"
           >
-            <HelpCircle className="h-5 w-5" />
+            <HelpCircle className="h-5 w-5 text-muted-foreground" />
             {!collapsed && (
-              <span className="sidebar-text ml-3">API Docs</span>
+              <span className="sidebar-text ml-3 transition-opacity duration-200">API Docs</span>
             )}
           </Button>
         </Link>

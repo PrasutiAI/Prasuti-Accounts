@@ -3,7 +3,6 @@ import { useMutation } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -11,14 +10,9 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Shield } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { loginSchema, type LoginRequest } from "@shared/schema";
 
-const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(1, "Password is required"),
-  mfaCode: z.string().optional(),
-});
-
-type LoginForm = z.infer<typeof loginSchema>;
+type LoginForm = LoginRequest;
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -39,7 +33,7 @@ export default function Login() {
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: "",
+      identifier: "",
       password: "",
       mfaCode: "",
     },
@@ -105,15 +99,15 @@ export default function Login() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
-                name="email"
+                name="identifier"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel>Email or Phone Number</FormLabel>
                     <FormControl>
                       <Input 
-                        type="email" 
-                        placeholder="Enter your email"
-                        data-testid="input-email"
+                        type="text" 
+                        placeholder="Enter your email or phone number"
+                        data-testid="input-identifier"
                         {...field} 
                       />
                     </FormControl>
