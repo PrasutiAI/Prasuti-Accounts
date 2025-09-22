@@ -11,6 +11,10 @@ import ResetPassword from "@/pages/reset-password";
 import VerifyEmail from "@/pages/verify-email";
 import Users from "@/pages/users";
 import Settings from "@/pages/settings";
+import Roles from "@/pages/roles";
+import ApiKeys from "@/pages/api-keys";
+import MFA from "@/pages/mfa";
+import Audit from "@/pages/audit";
 import NotFound from "@/pages/not-found";
 import { AuthProvider } from "@/hooks/use-auth";
 import { PermissionProvider } from "@/hooks/use-permissions";
@@ -56,11 +60,7 @@ function Router() {
           requiredRoles="admin"
           requiredPermissions={['roles:read']}
         >
-          {/* We'll create this component later if it doesn't exist */}
-          <div className="p-6">
-            <h1 className="text-2xl font-bold">Role Management</h1>
-            <p className="text-muted-foreground">Manage user roles and permissions (Admin only)</p>
-          </div>
+          <Roles />
         </ProtectedRoute>
       )} />
       
@@ -69,19 +69,13 @@ function Router() {
           requiredRoles={['admin', 'developer']}
           requiredPermissions={['api-keys:read']}
         >
-          <div className="p-6">
-            <h1 className="text-2xl font-bold">API Keys</h1>
-            <p className="text-muted-foreground">Manage API keys and client credentials</p>
-          </div>
+          <ApiKeys />
         </ProtectedRoute>
       )} />
       
       <Route path="/mfa" component={() => (
         <ProtectedRoute requiredRoles={['admin', 'developer', 'user']}>
-          <div className="p-6">
-            <h1 className="text-2xl font-bold">Multi-Factor Authentication</h1>
-            <p className="text-muted-foreground">Configure your MFA settings</p>
-          </div>
+          <MFA />
         </ProtectedRoute>
       )} />
       
@@ -90,10 +84,7 @@ function Router() {
           requiredRoles={['admin', 'developer']}
           requiredPermissions={['audit:read']}
         >
-          <div className="p-6">
-            <h1 className="text-2xl font-bold">Audit Logs</h1>
-            <p className="text-muted-foreground">View system audit logs and security events</p>
-          </div>
+          <Audit />
         </ProtectedRoute>
       )} />
       
