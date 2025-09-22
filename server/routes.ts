@@ -10,6 +10,15 @@ import { auditService } from "./services/audit.service";
 import { cryptoUtils } from "./utils/crypto";
 import { validateBody, validateQuery, validateParams, commonSchemas } from "./utils/validation";
 import { authenticateToken, requireRole, requirePermissions, optionalAuth, rateLimit } from "./middleware/auth.middleware";
+import { 
+  authRateLimit, 
+  strictAuthRateLimit, 
+  apiRateLimit, 
+  heavyApiRateLimit, 
+  createUserRateLimit,
+  enforceSessionLimitAtLogin,
+  sessionMonitoring 
+} from "./middleware/security.middleware";
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
 import {
@@ -92,7 +101,7 @@ idm_failed_logins_24h ${failedLogins.count}
   const authRouter = express.Router();
 
   authRouter.post('/register', 
-    rateLimit(3, 15 * 60 * 1000), // 3 attempts per 15 minutes
+    strictAuthRateLimit, // 3 attempts per 15 minutes
     validateBody(registerSchema),
     async (req, res) => {
       try {
@@ -114,7 +123,8 @@ idm_failed_logins_24h ${failedLogins.count}
   );
 
   authRouter.post('/login',
-    rateLimit(5, 15 * 60 * 1000), // 5 attempts per 15 minutes
+    authRateLimit, // 5 attempts per 15 minutes
+    enforceSessionLimitAtLogin(5), // Limit to 5 concurrent sessions per user
     validateBody(loginSchema),
     async (req, res) => {
       try {
@@ -161,7 +171,7 @@ idm_failed_logins_24h ${failedLogins.count}
   );
 
   authRouter.post('/forgot-password',
-    rateLimit(3, 60 * 60 * 1000), // 3 attempts per hour
+    strictAuthRateLimit, // 3 attempts per 15 minutes
     validateBody(z.object({ email: commonSchemas.email })),
     async (req, res) => {
       try {
@@ -193,7 +203,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   authRouter.post('/change-password',
     authenticateToken,
-    rateLimit(5, 15 * 60 * 1000), // 5 attempts per 15 minutes
+    createUserRateLimit({ windowMs: 15 * 60 * 1000, maxRequests: 5 }), // 5 attempts per 15 minutes per user
     validateBody(changePasswordSchema),
     async (req, res) => {
       try {
@@ -211,7 +221,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   authRouter.delete('/account',
     authenticateToken,
-    rateLimit(3, 60 * 60 * 1000), // 3 attempts per hour
+    createUserRateLimit({ windowMs: 60 * 60 * 1000, maxRequests: 3 }), // 3 attempts per hour per user
     validateBody(z.object({ currentPassword: z.string() })),
     async (req, res) => {
       try {
@@ -227,7 +237,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   // OAuth2 token endpoint
   app.post('/api/oauth/token', 
-    rateLimit(10, 15 * 60 * 1000), // 10 attempts per 15 minutes
+    authRateLimit, // 5 attempts per 15 minutes
     async (req, res) => {
     const { grant_type, refresh_token, client_id, client_secret, username, password } = req.body;
 
@@ -300,9 +310,11 @@ idm_failed_logins_24h ${failedLogins.count}
 
   // User management routes
   const userRouter = express.Router();
+  userRouter.use(sessionMonitoring); // Track user activity after authentication
 
   userRouter.get('/',
     authenticateToken,
+    apiRateLimit,
     requirePermissions('users', 'read'),
     validateQuery(commonSchemas.pagination as any),
     async (req, res) => {
@@ -340,6 +352,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   userRouter.post('/',
     authenticateToken,
+    heavyApiRateLimit,
     requirePermissions('users', 'create'),
     validateBody(registerSchema.extend({
       sendWelcomeEmail: z.boolean().optional(),
@@ -379,6 +392,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   userRouter.delete('/:id',
     authenticateToken,
+    heavyApiRateLimit,
     requirePermissions('users', 'delete'),
     validateParams(z.object({ id: commonSchemas.uuid })),
     async (req, res) => {
@@ -437,6 +451,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   adminRouter.post('/keys/rotate',
     authenticateToken,
+    heavyApiRateLimit,
     requirePermissions('system', 'admin'),
     async (req, res) => {
       try {
@@ -463,6 +478,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   mfaRouter.get('/setup',
     authenticateToken,
+    apiRateLimit,
     async (req, res) => {
       try {
         const result = await mfaService.generateMfaSecret(req.user!.id);
@@ -475,6 +491,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   mfaRouter.post('/enable',
     authenticateToken,
+    createUserRateLimit({ windowMs: 15 * 60 * 1000, maxRequests: 3 }),
     validateBody(enableMfaSchema),
     async (req, res) => {
       try {
@@ -488,6 +505,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   mfaRouter.post('/disable',
     authenticateToken,
+    createUserRateLimit({ windowMs: 15 * 60 * 1000, maxRequests: 3 }),
     validateBody(enableMfaSchema),
     async (req, res) => {
       try {
@@ -501,6 +519,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   mfaRouter.get('/status',
     authenticateToken,
+    apiRateLimit,
     async (req, res) => {
       try {
         const status = await mfaService.getMfaStatus(req.user!.id);
@@ -518,6 +537,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   clientsRouter.get('/',
     authenticateToken,
+    apiRateLimit,
     requirePermissions('clients', 'read'),
     async (req, res) => {
       try {
@@ -533,6 +553,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   clientsRouter.post('/',
     authenticateToken,
+    heavyApiRateLimit,
     requirePermissions('clients', 'create'),
     validateBody(insertClientSchema),
     async (req, res) => {
@@ -575,6 +596,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   auditRouter.get('/',
     authenticateToken,
+    apiRateLimit,
     requirePermissions('audit', 'read'),
     validateQuery(commonSchemas.pagination as any),
     async (req, res) => {
@@ -590,6 +612,7 @@ idm_failed_logins_24h ${failedLogins.count}
 
   auditRouter.get('/security-events',
     authenticateToken,
+    apiRateLimit,
     requirePermissions('audit', 'read'),
     async (req, res) => {
       try {

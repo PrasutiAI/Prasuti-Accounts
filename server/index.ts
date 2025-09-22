@@ -4,8 +4,17 @@ import helmet from "helmet";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { setupDatabase } from "../scripts/setup-database";
+import { 
+  securityHeaders, 
+  securityLogger, 
+  sanitizeRequest, 
+  sessionMonitoring 
+} from "./middleware/security.middleware";
 
 const app = express();
+
+// Trust proxy for rate limiting and IP detection
+app.set('trust proxy', 1);
 
 // Security headers
 app.use(helmet({
@@ -24,10 +33,20 @@ app.use(helmet({
     includeSubDomains: true,
     preload: true,
   },
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" }
 }));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// Additional security headers
+app.use(securityHeaders);
+
+// Request sanitization
+app.use(sanitizeRequest);
+
+// Security logging
+app.use(securityLogger);
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 app.use((req, res, next) => {
   const start = Date.now();
