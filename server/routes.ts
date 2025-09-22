@@ -191,6 +191,38 @@ idm_failed_logins_24h ${failedLogins.count}
     }
   );
 
+  authRouter.post('/change-password',
+    authenticateToken,
+    rateLimit(5, 15 * 60 * 1000), // 5 attempts per 15 minutes
+    validateBody(changePasswordSchema),
+    async (req, res) => {
+      try {
+        await authService.changePassword(
+          req.user!.id,
+          req.body.currentPassword,
+          req.body.newPassword
+        );
+        res.json({ message: 'Password changed successfully' });
+      } catch (error) {
+        res.status(400).json({ message: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  );
+
+  authRouter.delete('/account',
+    authenticateToken,
+    rateLimit(3, 60 * 60 * 1000), // 3 attempts per hour
+    validateBody(z.object({ currentPassword: z.string() })),
+    async (req, res) => {
+      try {
+        await authService.deleteUserAccount(req.user!.id, req.body.currentPassword);
+        res.json({ message: 'Account deleted successfully' });
+      } catch (error) {
+        res.status(400).json({ message: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  );
+
   app.use('/api/auth', authRouter);
 
   // OAuth2 token endpoint

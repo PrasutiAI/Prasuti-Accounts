@@ -10,19 +10,62 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, History, Download, Key } from "lucide-react";
 
+// Type interfaces for better type safety
+interface MetricsData {
+  users?: {
+    totalUsers: number;
+    activeUsers: number;
+    pendingUsers: number;
+    blockedUsers: number;
+  };
+  system?: {
+    totalUsers: number;
+    activeUsers: number;
+    totalClients: number;
+    activeKeys: number;
+  };
+}
+
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  status: string;
+  isVerified: boolean;
+  mfaEnabled: boolean;
+  lastLogin: string | null;
+  createdAt: string;
+}
+
+interface UsersResponse {
+  users: User[];
+}
+
+interface AuditEvent {
+  id: string;
+  action: string;
+  success: boolean;
+  metadata?: {
+    email?: string;
+  };
+  ipAddress?: string;
+  createdAt: string;
+}
+
 export default function Dashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [userModalOpen, setUserModalOpen] = useState(false);
 
-  const { data: systemStats } = useQuery({
+  const { data: systemStats } = useQuery<MetricsData>({
     queryKey: ['/api/admin/stats'],
   });
 
-  const { data: auditEvents } = useQuery({
+  const { data: auditEvents } = useQuery<AuditEvent[]>({
     queryKey: ['/api/audit/security-events'],
   });
 
-  const { data: usersData } = useQuery({
+  const { data: usersData } = useQuery<UsersResponse>({
     queryKey: ['/api/users'],
   });
 

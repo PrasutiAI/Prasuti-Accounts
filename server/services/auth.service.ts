@@ -238,6 +238,78 @@ export class AuthService {
     });
   }
 
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    // Get user to verify current password
+    const user = await storage.getUser(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Verify current password
+    const isValidPassword = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isValidPassword) {
+      await storage.createUserAuditLog({
+        userId,
+        action: 'password_change',
+        details: { success: false, reason: 'invalid_current_password' },
+      });
+      throw new Error('Current password is incorrect');
+    }
+
+    // Hash new password
+    const passwordHash = await bcrypt.hash(newPassword, this.saltRounds);
+
+    // Update password
+    await storage.updateUser(userId, { passwordHash });
+
+    // Revoke all user sessions except current one (user can revoke all if they want)
+    // await storage.revokeUserSessions(userId);
+
+    // Log audit event
+    await storage.createUserAuditLog({
+      userId,
+      action: 'password_change',
+      details: { success: true, initiated_by_user: true },
+    });
+  }
+
+  async deleteUserAccount(userId: string, currentPassword: string): Promise<void> {
+    // Get user to verify password
+    const user = await storage.getUser(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Verify current password for security
+    const isValidPassword = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isValidPassword) {
+      await storage.createUserAuditLog({
+        userId,
+        action: 'user_delete',
+        details: { success: false, reason: 'invalid_password' },
+      });
+      throw new Error('Current password is incorrect');
+    }
+
+    // Log audit event before deletion
+    await storage.createUserAuditLog({
+      userId,
+      action: 'user_delete',
+      details: { success: true, initiated_by_user: true, email: user.email },
+    });
+
+    // Revoke all user sessions
+    await storage.revokeUserSessions(userId);
+
+    // Soft delete or hard delete depending on business requirements
+    // For now, we'll just deactivate the account
+    await storage.updateUser(userId, { 
+      isActive: false,
+      // Note: In a real system, you might want to anonymize the data
+      // or implement a proper deletion process with retention policies
+    });
+  }
+
   private async generateRefreshToken(userId: string, ipAddress?: string, deviceInfo?: string): Promise<string> {
     const token = cryptoUtils.generateRefreshToken();
 

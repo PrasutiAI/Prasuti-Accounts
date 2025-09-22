@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Menu, Search, Bell, User, LogOut } from "lucide-react";
+import { Menu, Search, Bell, User, LogOut, Settings } from "lucide-react";
+import { Link } from "wouter";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -27,9 +29,9 @@ export default function Header({ onSidebarToggle }: HeaderProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: notifications } = useQuery({
+  const { data: notifications } = useQuery<any[]>({
     queryKey: ['/api/audit/security-events'],
-    select: (data) => data?.slice(0, 5) || [], // Get latest 5 events
+    select: (data: any[]) => data?.slice(0, 5) || [], // Get latest 5 events
   });
 
   const logoutMutation = useMutation({
@@ -163,9 +165,11 @@ export default function Header({ onSidebarToggle }: HeaderProps) {
                 <User className="mr-2 h-4 w-4" />
                 Profile
               </DropdownMenuItem>
-              <DropdownMenuItem data-testid="menu-settings">
-                <Settings className="mr-2 h-4 w-4" />
-                Settings
+              <DropdownMenuItem asChild data-testid="menu-settings">
+                <Link href="/settings" className="flex items-center">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem 
