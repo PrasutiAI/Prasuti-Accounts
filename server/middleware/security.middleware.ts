@@ -89,29 +89,56 @@ export function createRateLimit(config: RateLimitConfig) {
   };
 }
 
-// Different rate limit strategies
+// Environment-specific rate limit configurations
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+// Development settings: More permissive for testing and debugging
+// Production settings: Strict for security
+const getRateLimitConfig = () => {
+  if (isDevelopment) {
+    console.log('🔧 Using relaxed rate limits for development environment');
+    return {
+      auth: { windowMs: 15 * 60 * 1000, maxRequests: 100 }, // 100 attempts per 15 minutes
+      strictAuth: { windowMs: 15 * 60 * 1000, maxRequests: 50 }, // 50 attempts per 15 minutes
+      api: { windowMs: 60 * 1000, maxRequests: 1000 }, // 1000 requests per minute
+      heavyApi: { windowMs: 60 * 1000, maxRequests: 100 }, // 100 requests per minute
+    };
+  } else {
+    console.log('🔒 Using strict rate limits for production environment');
+    return {
+      auth: { windowMs: 15 * 60 * 1000, maxRequests: 5 }, // 5 attempts per 15 minutes
+      strictAuth: { windowMs: 15 * 60 * 1000, maxRequests: 3 }, // 3 attempts per 15 minutes
+      api: { windowMs: 60 * 1000, maxRequests: 100 }, // 100 requests per minute
+      heavyApi: { windowMs: 60 * 1000, maxRequests: 10 }, // 10 requests per minute
+    };
+  }
+};
+
+const rateLimits = getRateLimitConfig();
+
+// Different rate limit strategies with environment-specific settings
 export const authRateLimit = createRateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  maxRequests: 5,
+  windowMs: rateLimits.auth.windowMs,
+  maxRequests: rateLimits.auth.maxRequests,
   message: 'Too many authentication attempts',
 });
 
 export const strictAuthRateLimit = createRateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  maxRequests: 3,
+  windowMs: rateLimits.strictAuth.windowMs,
+  maxRequests: rateLimits.strictAuth.maxRequests,
   message: 'Too many failed authentication attempts',
 });
 
 export const apiRateLimit = createRateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  maxRequests: 100,
+  windowMs: rateLimits.api.windowMs,
+  maxRequests: rateLimits.api.maxRequests,
   skipSuccessfulRequests: true,
   message: 'API rate limit exceeded',
 });
 
 export const heavyApiRateLimit = createRateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  maxRequests: 10,
+  windowMs: rateLimits.heavyApi.windowMs,
+  maxRequests: rateLimits.heavyApi.maxRequests,
   message: 'Heavy operation rate limit exceeded',
 });
 
