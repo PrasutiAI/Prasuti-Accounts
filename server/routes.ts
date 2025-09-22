@@ -615,6 +615,42 @@ idm_failed_logins_24h ${failedLogins.count}
 
   app.use('/api/audit', auditRouter);
 
+  // Emergency JWT key rotation endpoint (for development debugging)
+  app.post('/api/system/emergency-rotate-jwt', async (req, res) => {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ message: 'Not available in production' });
+    }
+    
+    try {
+      console.log('🔑 Emergency JWT key rotation triggered...');
+      
+      // Deactivate all existing keys first  
+      const allKeys = await storage.getAllJwksKeys();
+      for (const key of allKeys) {
+        await storage.deactivateJwksKey(key.kid);
+      }
+      console.log(`🗑️ Deactivated ${allKeys.length} existing JWT keys`);
+      
+      // Generate new keys with current encryption key
+      const result = await jwtService.rotateKeys();
+      console.log('✅ Successfully generated new JWT keys:', result.kid);
+      
+      res.json({ 
+        success: true, 
+        message: 'JWT keys rotated successfully', 
+        newKeyId: result.kid,
+        deactivatedKeys: allKeys.length
+      });
+    } catch (error) {
+      console.error('❌ Failed to rotate JWT keys:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to rotate JWT keys', 
+        error: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
   // OpenAPI/Swagger documentation
   app.get('/api/openapi.json', async (req, res) => {
     try {

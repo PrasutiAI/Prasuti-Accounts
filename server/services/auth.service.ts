@@ -28,6 +28,7 @@ export class AuthService {
       email: userData.email,
       name: userData.name,
       password: userData.password, // Will be hashed in storage layer with bcrypt
+      phoneNumber: userData.phoneNumber, // Include phone number from registration data
       roleId: defaultRole.id,
       mfaSecret: userData.mfaSecret, // Will be encrypted in storage layer
     });
@@ -253,10 +254,11 @@ export class AuthService {
     // Log audit event
     await storage.createUserAuditLog({
       userId: user.id,
-      action: 'password_reset_requested',
+      action: 'password_change',
       details: { 
         email: user.email,
-        resetEmailSent: emailSent 
+        resetEmailSent: emailSent,
+        action: 'reset_requested'
       },
     });
 

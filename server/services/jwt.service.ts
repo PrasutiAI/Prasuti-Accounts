@@ -121,8 +121,9 @@ export class JwtService {
     // Generate new RSA key pair
     const { publicKey, privateKey } = await cryptoUtils.generateRSAKeyPair();
     
-    // Create new key ID based on current date
-    const kid = `key-${new Date().toISOString().split('T')[0]}`;
+    // Create new key ID based on current date and timestamp for uniqueness
+    const now = new Date();
+    const kid = `key-${now.toISOString().split('T')[0]}-${now.getTime()}`;
     
     // Encrypt private key before storing
     const encryptedPrivateKey = await cryptoUtils.encrypt(privateKey);
