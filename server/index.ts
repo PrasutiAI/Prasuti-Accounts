@@ -3,7 +3,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { pool } from "./db";
+import { setupDatabase } from "../scripts/setup-database";
 
 const app = express();
 
@@ -67,6 +67,18 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Setup database on application startup
+  console.log('🚀 Starting application...');
+  
+  const setupSuccess = await setupDatabase({ 
+    verbose: process.env.NODE_ENV === 'development' 
+  });
+  
+  if (!setupSuccess) {
+    console.error('❌ Database setup failed. Exiting...');
+    process.exit(1);
+  }
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -123,8 +135,13 @@ app.use((req, res, next) => {
       });
 
       // Close database connection pool after server is closed
-      await pool.end();
-      log('Database connections closed successfully');
+      try {
+        const { pool } = await import('./db');
+        await pool.end();
+        log('Database connections closed successfully');
+      } catch (error) {
+        log('Database connection may not have been established');
+      }
 
       log('Graceful shutdown completed');
       process.exit(0);

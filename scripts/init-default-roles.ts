@@ -76,13 +76,15 @@ export async function initDefaultRoles() {
   console.log('✅ Default roles initialization completed!');
 }
 
-// Auto-run when executed directly
-initDefaultRoles()
-  .then(() => {
-    console.log('Script completed successfully');
-    process.exit(0);
-  })
-  .catch((error) => {
-    console.error('Failed to initialize roles:', error);
-    process.exit(1);
-  });
+// Auto-run when executed directly (only when run as a standalone script)
+if (import.meta.url === `file://${process.argv[1]}`) {
+  initDefaultRoles()
+    .then(() => {
+      console.log('Script completed successfully');
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error('Failed to initialize roles:', error);
+      process.exit(1);
+    });
+}

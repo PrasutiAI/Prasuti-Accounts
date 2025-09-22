@@ -5,18 +5,24 @@ const generateKeyPairAsync = promisify(generateKeyPair);
 
 class CryptoUtils {
   private readonly algorithm = 'aes-256-gcm';
-  private readonly masterKey: string;
+  private warnedAboutDefaultKey = false;
 
-  constructor() {
-    this.masterKey = process.env.ENCRYPTION_MASTER_KEY || 'change-me-in-production';
-    if (this.masterKey === 'change-me-in-production') {
+  private getMasterKey(): string {
+    const masterKey = process.env.ENCRYPTION_MASTER_KEY || 'change-me-in-production';
+    
+    // Only warn once per process about default key
+    if (masterKey === 'change-me-in-production' && !this.warnedAboutDefaultKey) {
       console.warn('WARNING: Using default encryption key. Set ENCRYPTION_MASTER_KEY in production!');
+      this.warnedAboutDefaultKey = true;
     }
+    
+    return masterKey;
   }
 
   private getKey(): Buffer {
     // In production, use a proper key derivation function (PBKDF2, scrypt, etc.)
-    return Buffer.from(this.masterKey.padEnd(32, '0').slice(0, 32));
+    const masterKey = this.getMasterKey();
+    return Buffer.from(masterKey.padEnd(32, '0').slice(0, 32));
   }
 
   async encrypt(plaintext: string): Promise<string> {

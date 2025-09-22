@@ -14,7 +14,7 @@ async function generateEncryptionKey(): Promise<string> {
   return randomBytes(32).toString('hex');
 }
 
-async function setupEncryptionKey(options: SetupKeyOptions = {}): Promise<void> {
+export async function setupEncryptionKey(options: SetupKeyOptions = {}): Promise<string | null> {
   console.log('🔐 Setting up ENCRYPTION_MASTER_KEY for secure operation\n');
 
   // Check if .env file exists
@@ -28,7 +28,16 @@ async function setupEncryptionKey(options: SetupKeyOptions = {}): Promise<void> 
     if (envContent.includes('ENCRYPTION_MASTER_KEY=') && !options.force) {
       console.log('✅ ENCRYPTION_MASTER_KEY already exists in .env file');
       console.log('Use --force flag to regenerate the key\n');
-      return;
+      
+      // Extract and return the existing key
+      const lines = envContent.split('\n');
+      for (const line of lines) {
+        if (line.startsWith('ENCRYPTION_MASTER_KEY=')) {
+          const key = line.split('=')[1];
+          return key || null;
+        }
+      }
+      return null;
     }
   }
 
@@ -47,7 +56,10 @@ async function setupEncryptionKey(options: SetupKeyOptions = {}): Promise<void> 
   const newContent = filteredLines.filter(line => line.trim()).join('\n') + '\n';
   writeFileSync(envPath, newContent);
 
-  console.log('✅ ENCRYPTION_MASTER_KEY has been set in .env file');
+  // Set in current process environment immediately
+  process.env.ENCRYPTION_MASTER_KEY = newKey;
+
+  console.log('✅ ENCRYPTION_MASTER_KEY has been set in .env file and current process');
   
   if (options.output) {
     console.log(`\n🔑 Generated key: ${newKey}`);
@@ -60,6 +72,8 @@ async function setupEncryptionKey(options: SetupKeyOptions = {}): Promise<void> 
   console.log('1. Restart your application to use the new encryption key');
   console.log('2. Ensure .env is added to .gitignore');
   console.log('3. Set ENCRYPTION_MASTER_KEY in your production environment\n');
+  
+  return newKey;
 }
 
 // Parse command line arguments
