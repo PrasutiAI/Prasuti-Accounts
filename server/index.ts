@@ -16,16 +16,21 @@ const app = express();
 // Trust proxy for rate limiting and IP detection
 app.set('trust proxy', 1);
 
-// Security headers
+// Security headers - adjust CSP for development vs production
+const isDevelopment = app.get("env") === "development";
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc: ["'self'"],
+      scriptSrc: isDevelopment 
+        ? ["'self'", "'unsafe-inline'", "'unsafe-eval'"] // Allow Vite's inline scripts and eval in dev
+        : ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'"],
+      connectSrc: isDevelopment 
+        ? ["'self'", "ws:", "wss:"] // Allow WebSocket connections for Vite HMR
+        : ["'self'"],
     },
   },
   hsts: {
