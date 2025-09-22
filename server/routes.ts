@@ -39,8 +39,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Basic metrics endpoint
-  app.get('/metrics', async (req, res) => {
+  // Basic metrics endpoint (secured)
+  app.get('/metrics', 
+    authenticateToken,
+    requireRole(['admin']),
+    async (req, res) => {
     try {
       const metrics = await storage.getSystemMetrics();
       const failedLogins = await auditService.getFailedLoginAttempts();
@@ -191,7 +194,9 @@ idm_failed_logins_24h ${failedLogins.count}
   app.use('/api/auth', authRouter);
 
   // OAuth2 token endpoint
-  app.post('/api/oauth/token', async (req, res) => {
+  app.post('/api/oauth/token', 
+    rateLimit(10, 15 * 60 * 1000), // 10 attempts per 15 minutes
+    async (req, res) => {
     const { grant_type, refresh_token, client_id, client_secret, username, password } = req.body;
 
     try {

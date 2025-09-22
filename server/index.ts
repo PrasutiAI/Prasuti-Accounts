@@ -3,6 +3,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { pool } from "./db";
 
 const app = express();
 
@@ -45,7 +46,7 @@ app.use((req, res, next) => {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       // Only log response body for non-sensitive endpoints in development
       if (capturedJsonResponse && process.env.NODE_ENV !== 'production') {
-        const sensitiveEndpoints = ['/api/auth/login', '/api/auth/register', '/api/oauth/token', '/api/mfa'];
+        const sensitiveEndpoints = ['/api/auth/login', '/api/auth/register', '/api/oauth/token', '/api/mfa', '/api/clients'];
         const isSensitiveEndpoint = sensitiveEndpoints.some(endpoint => path.startsWith(endpoint));
         if (!isSensitiveEndpoint) {
           logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
@@ -97,4 +98,56 @@ app.use((req, res, next) => {
   }, () => {
     log(`serving on port ${port}`);
   });
+
+  // Graceful shutdown handling
+  const gracefulShutdown = async (signal: string) => {
+    log(`Received ${signal}. Starting graceful shutdown...`);
+    
+    try {
+      // Close the HTTP server with timeout
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Server close timeout'));
+        }, 10000); // 10 second timeout
+
+        server.close((err) => {
+          clearTimeout(timeout);
+          if (err) {
+            log(`Error closing server: ${err.message}`);
+            reject(err);
+          } else {
+            log('HTTP server closed successfully');
+            resolve();
+          }
+        });
+      });
+
+      // Close database connection pool after server is closed
+      await pool.end();
+      log('Database connections closed successfully');
+
+      log('Graceful shutdown completed');
+      process.exit(0);
+    } catch (error) {
+      log(`Error during graceful shutdown: ${error instanceof Error ? error.message : String(error)}`);
+      // Force exit if graceful shutdown fails
+      setTimeout(() => process.exit(1), 1000);
+    }
+  };
+
+  // Register signal handlers
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+  // Handle uncaught exceptions and unhandled promise rejections
+  process.on('uncaughtException', (error) => {
+    log(`Uncaught Exception: ${error.message}`);
+    gracefulShutdown('UNCAUGHT_EXCEPTION');
+  });
+
+  process.on('unhandledRejection', (reason, promise) => {
+    log(`Unhandled Rejection at: ${promise}, reason: ${reason}`);
+    gracefulShutdown('UNHANDLED_REJECTION');
+  });
+
 })();
