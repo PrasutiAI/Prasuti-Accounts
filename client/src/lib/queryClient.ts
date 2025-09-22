@@ -2,15 +2,18 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
+    // Read response as text first to avoid body stream consumption issues
+    const responseText = await res.text();
+    
     try {
-      // Try to parse JSON response first for proper error messages
-      const errorData = await res.json();
+      // Try to parse the text as JSON for proper error messages
+      const errorData = JSON.parse(responseText);
       const message = errorData.message || errorData.error || res.statusText;
       throw new Error(message);
     } catch (jsonError) {
-      // If JSON parsing fails, fall back to text
-      const text = await res.text() || res.statusText;
-      throw new Error(`${res.status}: ${text}`);
+      // If JSON parsing fails, use the text content or status text as fallback
+      const fallbackMessage = responseText || res.statusText;
+      throw new Error(`${res.status}: ${fallbackMessage}`);
     }
   }
 }
@@ -27,7 +30,8 @@ export async function apiRequest(
     credentials: "include",
   });
 
-  await throwIfResNotOk(res);
+  // Clone the response before error checking to preserve the body for the caller
+  await throwIfResNotOk(res.clone());
   return res;
 }
 
@@ -45,7 +49,8 @@ export const getQueryFn: <T>(options: {
       return null;
     }
 
-    await throwIfResNotOk(res);
+    // Clone the response before error checking to preserve the body for JSON parsing
+    await throwIfResNotOk(res.clone());
     return await res.json();
   };
 
