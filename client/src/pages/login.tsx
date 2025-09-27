@@ -75,39 +75,41 @@ export default function Login() {
           }
         }
         
-        // Handle redirection with token inclusion for allowed domains
+        // Handle redirection with JWT details appended to all redirect URLs
         try {
           const destinationUrl = new URL(validatedDestination);
           const currentOrigin = window.location.origin;
           
-          if (destinationUrl.origin === currentOrigin) {
-            // Same-origin redirect: use router navigation
-            setLocation(destinationUrl.pathname + destinationUrl.search);
-          } else {
-            // Cross-origin redirect: append tokens to URL for allowed domains
-            let finalDestination = validatedDestination;
-            
-            // Get stored tokens
-            const accessToken = localStorage.getItem('accessToken');
-            const refreshToken = localStorage.getItem('refreshToken');
-            
-            if (accessToken && refreshToken) {
-              try {
-                const tokenResponse = await apiRequest('POST', '/api/auth/append-tokens-to-url', {
-                  url: validatedDestination,
-                  accessToken,
-                  refreshToken
-                });
-                const tokenData = await tokenResponse.json();
-                if (tokenData.urlWithTokens) {
-                  finalDestination = tokenData.urlWithTokens;
-                }
-              } catch (error) {
-                // If token appending fails, proceed with original URL
-                console.warn('Failed to append tokens to URL:', error);
+          // Get stored tokens
+          const accessToken = localStorage.getItem('accessToken');
+          const refreshToken = localStorage.getItem('refreshToken');
+          
+          // Append JWT details to all redirect URLs (both same-origin and cross-origin)
+          let finalDestination = validatedDestination;
+          
+          if (accessToken && refreshToken) {
+            try {
+              const tokenResponse = await apiRequest('POST', '/api/auth/append-tokens-to-url', {
+                url: validatedDestination,
+                accessToken,
+                refreshToken
+              });
+              const tokenData = await tokenResponse.json();
+              if (tokenData.urlWithTokens) {
+                finalDestination = tokenData.urlWithTokens;
               }
+            } catch (error) {
+              // If token appending fails, proceed with original URL
+              console.warn('Failed to append tokens to URL:', error);
             }
-            
+          }
+          
+          if (destinationUrl.origin === currentOrigin) {
+            // Same-origin redirect: use router navigation with JWT details in URL
+            const finalUrl = new URL(finalDestination);
+            setLocation(finalUrl.pathname + finalUrl.search + finalUrl.hash);
+          } else {
+            // Cross-origin redirect: use full URL replacement
             window.location.replace(finalDestination);
           }
         } catch (error) {
@@ -131,7 +133,11 @@ export default function Login() {
 
   const loginMutation = useMutation({
     mutationFn: async (data: LoginForm) => {
-      const response = await apiRequest('POST', '/api/auth/login', data);
+      const requestData = { ...data };
+      if (redirectUrl) {
+        requestData.redirectUrl = redirectUrl;
+      }
+      const response = await apiRequest('POST', '/api/auth/login', requestData);
       return response.json();
     },
     onSuccess: async (data) => {
@@ -144,71 +150,25 @@ export default function Login() {
         description: `Welcome back, ${data.user.name}!`,
       });
       
-      // Validate redirect URL if provided
-      let validatedDestination = "/dashboard";
+      // Use redirect URL with JWT details appended (if provided by backend)
+      const finalDestination = data.redirectUrl || "/dashboard";
       
-      if (redirectUrl) {
-        try {
-          const validationResponse = await apiRequest('POST', '/api/auth/validate-redirect', {
-            redirectUrl: redirectUrl
-          });
-          const validationData = await validationResponse.json();
-          
-          if (validationData.valid) {
-            validatedDestination = validationData.normalizedUrl;
-          } else {
-            toast({
-              title: "Invalid redirect URL",
-              description: `Redirecting to dashboard instead. ${validationData.error}`,
-              variant: "destructive",
-            });
-            validatedDestination = "/dashboard";
-          }
-        } catch (error) {
-          toast({
-            title: "Redirect validation failed",
-            description: "Redirecting to dashboard for security.",
-            variant: "destructive",
-          });
-          validatedDestination = "/dashboard";
-        }
-      }
-      
-      // Handle redirect with token inclusion for allowed domains
+      // Handle redirect 
       try {
-        const destinationUrl = new URL(validatedDestination);
+        const destinationUrl = new URL(finalDestination);
         const currentOrigin = window.location.origin;
         
         // Check if redirect is to same origin or external
         if (destinationUrl.origin === currentOrigin) {
-          // Same-origin redirect: use router navigation
-          // Tokens are already stored in localStorage and will be available
-          setLocation(destinationUrl.pathname + destinationUrl.search);
+          // Same-origin redirect: use router navigation with JWT details in URL
+          setLocation(destinationUrl.pathname + destinationUrl.search + destinationUrl.hash);
         } else {
-          // Cross-origin redirect: append tokens to URL for allowed domains
-          let finalDestination = validatedDestination;
-          
-          // Add tokens to URL for allowed domain redirects
-          try {
-            const tokenResponse = await apiRequest('POST', '/api/auth/append-tokens-to-url', {
-              url: validatedDestination,
-              accessToken: data.accessToken,
-              refreshToken: data.refreshToken
-            });
-            const tokenData = await tokenResponse.json();
-            if (tokenData.urlWithTokens) {
-              finalDestination = tokenData.urlWithTokens;
-            }
-          } catch (error) {
-            // If token appending fails, proceed with original URL
-            console.warn('Failed to append tokens to URL:', error);
-          }
-          
+          // Cross-origin redirect: use full URL replacement
           window.location.replace(finalDestination);
         }
       } catch (error) {
         // Fallback: treat as same-origin path if URL parsing fails
-        setLocation(validatedDestination.startsWith('/') ? validatedDestination : '/dashboard');
+        setLocation(finalDestination.startsWith('/') ? finalDestination : '/dashboard');
       }
     },
     onError: (error: any) => {

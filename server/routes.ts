@@ -138,7 +138,7 @@ idm_failed_logins_24h ${failedLogins.count}
   authRouter.post('/login',
     authRateLimit, // 5 attempts per 15 minutes
     enforceSessionLimitAtLogin(5), // Limit to 5 concurrent sessions per user
-    validateBody(loginSchema),
+    validateBody(loginSchema.extend({ redirectUrl: z.string().optional() })),
     async (req, res) => {
       try {
         const result = await authService.login(
@@ -147,10 +147,27 @@ idm_failed_logins_24h ${failedLogins.count}
           req.headers['user-agent']
         );
         
+        // Handle redirect URL with JWT details appended
+        let redirectUrlWithTokens: string | undefined;
+        
+        if (req.body.redirectUrl) {
+          const allowedDomains = await storage.getActiveAllowedDomains();
+          const validation = validateRedirectUrl(req.body.redirectUrl, allowedDomains);
+          
+          if (validation.isValid && validation.normalizedUrl) {
+            redirectUrlWithTokens = appendTokensToUrl(validation.normalizedUrl, allowedDomains, {
+              accessToken: result.accessToken,
+              refreshToken: result.refreshToken,
+              includeRefreshToken: false // Only include access token for security
+            });
+          }
+        }
+        
         res.json({
           accessToken: result.accessToken,
           refreshToken: result.refreshToken,
           user: result.user,
+          redirectUrl: redirectUrlWithTokens,
         });
       } catch (error) {
         res.status(401).json({ message: error instanceof Error ? error.message : String(error) });
