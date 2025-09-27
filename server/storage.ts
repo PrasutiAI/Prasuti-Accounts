@@ -6,7 +6,8 @@ import {
   passwordResetTokens, 
   userAuditLog, 
   clients, 
-  jwksKeys 
+  jwksKeys,
+  allowedDomains 
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, gte, lt } from "drizzle-orm";
@@ -31,7 +32,11 @@ import type {
   Client, 
   InsertClient,
   SelectClient,
-  JwksKey
+  JwksKey,
+  AllowedDomain,
+  InsertAllowedDomain,
+  SelectAllowedDomain,
+  UpdateAllowedDomain
 } from "@shared/schema";
 
 export interface IStorage {
@@ -99,6 +104,15 @@ export interface IStorage {
   getAllJwksKeys(): Promise<JwksKey[]>;
   createJwksKey(key: Omit<JwksKey, 'createdAt'>): Promise<JwksKey>;
   deactivateJwksKey(kid: string): Promise<boolean>;
+  
+  // Allowed domains operations
+  getAllowedDomain(id: string): Promise<AllowedDomain | undefined>;
+  getAllowedDomainByDomain(domain: string): Promise<AllowedDomain | undefined>;
+  createAllowedDomain(domain: InsertAllowedDomain): Promise<AllowedDomain>;
+  updateAllowedDomain(id: string, updates: UpdateAllowedDomain): Promise<AllowedDomain | undefined>;
+  deleteAllowedDomain(id: string): Promise<boolean>;
+  getAllAllowedDomains(): Promise<AllowedDomain[]>;
+  getActiveAllowedDomains(): Promise<AllowedDomain[]>;
   
   // System metrics
   getSystemMetrics(): Promise<{
@@ -541,6 +555,60 @@ export class DatabaseStorage implements IStorage {
       .set({ isActive: false })
       .where(eq(jwksKeys.kid, kid));
     return (result.rowCount ?? 0) > 0;
+  }
+
+  // Allowed domains operations
+  async getAllowedDomain(id: string): Promise<AllowedDomain | undefined> {
+    const [domain] = await db.select().from(allowedDomains).where(eq(allowedDomains.id, id)).limit(1);
+    return domain || undefined;
+  }
+
+  async getAllowedDomainByDomain(domain: string): Promise<AllowedDomain | undefined> {
+    const [allowedDomain] = await db.select().from(allowedDomains).where(eq(allowedDomains.domain, domain.toLowerCase())).limit(1);
+    return allowedDomain || undefined;
+  }
+
+  async createAllowedDomain(domain: InsertAllowedDomain): Promise<AllowedDomain> {
+    // Normalize domain to lowercase for consistent storage
+    const domainData = {
+      ...domain,
+      domain: domain.domain.toLowerCase()
+    };
+    
+    const [newDomain] = await db.insert(allowedDomains).values(domainData).returning();
+    return newDomain;
+  }
+
+  async updateAllowedDomain(id: string, updates: UpdateAllowedDomain): Promise<AllowedDomain | undefined> {
+    // Normalize domain if being updated
+    const updateData = updates.domain ? {
+      ...updates,
+      domain: updates.domain.toLowerCase(),
+      updatedAt: new Date()
+    } : {
+      ...updates,
+      updatedAt: new Date()
+    };
+    
+    const [updatedDomain] = await db
+      .update(allowedDomains)
+      .set(updateData)
+      .where(eq(allowedDomains.id, id))
+      .returning();
+    return updatedDomain || undefined;
+  }
+
+  async deleteAllowedDomain(id: string): Promise<boolean> {
+    const result = await db.delete(allowedDomains).where(eq(allowedDomains.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async getAllAllowedDomains(): Promise<AllowedDomain[]> {
+    return db.select().from(allowedDomains).orderBy(allowedDomains.domain);
+  }
+
+  async getActiveAllowedDomains(): Promise<AllowedDomain[]> {
+    return db.select().from(allowedDomains).where(eq(allowedDomains.isActive, true)).orderBy(allowedDomains.domain);
   }
 
   // System metrics
