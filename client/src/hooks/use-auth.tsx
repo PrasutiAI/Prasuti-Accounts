@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { jwtDecode } from 'jwt-decode';
 import { apiRequest } from '@/lib/queryClient';
@@ -54,6 +54,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const queryClient = useQueryClient();
+  
+  // Ref to track session refresh interval
+  const sessionRefreshInterval = useRef<NodeJS.Timeout | null>(null);
+
+  // Enhanced session management - proactive token refresh
+  const setupSessionRefresh = () => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) return;
+    
+    try {
+      const decoded = jwtDecode(token);
+      const now = Date.now() / 1000;
+      const expiryTime = decoded.exp || 0;
+      
+      // Refresh token 5 minutes before expiry (or halfway through if token life is less than 10 minutes)
+      const refreshBuffer = Math.min(300, (expiryTime - now) / 2); // 5 minutes or half the remaining time
+      const refreshTime = (expiryTime - now - refreshBuffer) * 1000; // Convert to milliseconds
+      
+      if (refreshTime > 0) {
+        // Clear existing interval
+        if (sessionRefreshInterval.current) {
+          clearTimeout(sessionRefreshInterval.current);
+        }
+        
+        // Set up automatic refresh
+        sessionRefreshInterval.current = setTimeout(async () => {
+          await handleTokenRefresh();
+          // Set up next refresh cycle
+          setupSessionRefresh();
+        }, refreshTime);
+      }
+    } catch (error) {
+      console.error('Failed to setup session refresh:', error);
+    }
+  };
+
+  // Clear session refresh interval
+  const clearSessionRefresh = () => {
+    if (sessionRefreshInterval.current) {
+      clearTimeout(sessionRefreshInterval.current);
+      sessionRefreshInterval.current = null;
+    }
+  };
 
   // Function to fetch user with full role data
   const fetchUserWithRole = async (userId: string): Promise<User | null> => {
@@ -113,6 +156,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 },
               });
             }
+            
+            // Set up proactive session refresh
+            setupSessionRefresh();
           } else {
             // Token expired, try to refresh
             await handleTokenRefresh();
@@ -127,6 +173,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     initAuth();
+    
+    // Cleanup function to clear session refresh on unmount
+    return () => {
+      clearSessionRefresh();
+    };
   }, []);
 
   const handleTokenRefresh = async () => {
@@ -169,6 +220,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             },
           });
         }
+        
+        // Set up proactive session refresh after successful token refresh
+        setupSessionRefresh();
       } else {
         throw new Error('Refresh failed');
       }
@@ -177,6 +231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
       setUser(null);
+      clearSessionRefresh(); // Clear refresh interval on error
     }
   };
 
@@ -201,6 +256,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setUser(userWithRole);
       queryClient.invalidateQueries();
+      
+      // Set up proactive session refresh after successful login
+      setupSessionRefresh();
     } catch (error) {
       throw error;
     }
@@ -224,6 +282,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('refreshToken');
     setUser(null);
     queryClient.clear();
+    
+    // Clear session refresh interval on logout
+    clearSessionRefresh();
   };
 
   const value = {
