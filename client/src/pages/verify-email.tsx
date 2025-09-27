@@ -31,31 +31,66 @@ export default function VerifyEmail() {
         description: data.message || "Your email has been verified. You can now sign in.",
       });
       
-      // Handle redirect after successful verification
-      if (data.redirectUrl) {
-        // If there's a redirectUrl, redirect to login with the redirectUrl parameter
-        const loginWithRedirect = `/login?redirectUrl=${encodeURIComponent(data.redirectUrl)}`;
-        setRedirectUrl(loginWithRedirect);
+      // Handle tokens if provided (user is automatically logged in)
+      if (data.accessToken && data.refreshToken) {
+        // Store tokens for automatic login
+        localStorage.setItem('accessToken', data.accessToken);
+        localStorage.setItem('refreshToken', data.refreshToken);
         
-        // Show success message briefly, then redirect to login
+        // Show success message briefly, then redirect directly to destination
         setTimeout(() => {
           setVerificationStatus('redirecting');
           setTimeout(() => {
-            setLocation(loginWithRedirect);
+            if (data.redirectUrl) {
+              // Check if redirectUrl is external or internal
+              try {
+                const redirectUrlObj = new URL(data.redirectUrl);
+                const currentOrigin = window.location.origin;
+                
+                if (redirectUrlObj.origin === currentOrigin) {
+                  // Same-origin redirect: use router navigation
+                  setLocation(redirectUrlObj.pathname + redirectUrlObj.search);
+                } else {
+                  // Cross-origin redirect: tokens should already be in the URL
+                  window.location.replace(data.redirectUrl);
+                }
+              } catch (error) {
+                // If URL parsing fails, treat as internal path
+                setLocation(data.redirectUrl.startsWith('/') ? data.redirectUrl : '/dashboard');
+              }
+            } else {
+              // No redirect URL, go to dashboard
+              setLocation('/dashboard');
+            }
           }, 2000); // Show redirecting message for 2 seconds
         }, 2000); // Show success message for 2 seconds
       } else {
-        // No redirectUrl, just go to login
-        const destination = "/login";
-        setRedirectUrl(destination);
-        
-        // Show success message briefly, then redirect
-        setTimeout(() => {
-          setVerificationStatus('redirecting');
+        // No tokens provided, redirect to login as before
+        if (data.redirectUrl) {
+          // If there's a redirectUrl, redirect to login with the redirectUrl parameter
+          const loginWithRedirect = `/login?redirectUrl=${encodeURIComponent(data.redirectUrl)}`;
+          setRedirectUrl(loginWithRedirect);
+          
+          // Show success message briefly, then redirect to login
           setTimeout(() => {
-            setLocation(destination);
-          }, 2000); // Show redirecting message for 2 seconds
-        }, 2000); // Show success message for 2 seconds
+            setVerificationStatus('redirecting');
+            setTimeout(() => {
+              setLocation(loginWithRedirect);
+            }, 2000); // Show redirecting message for 2 seconds
+          }, 2000); // Show success message for 2 seconds
+        } else {
+          // No redirectUrl, just go to login
+          const destination = "/login";
+          setRedirectUrl(destination);
+          
+          // Show success message briefly, then redirect
+          setTimeout(() => {
+            setVerificationStatus('redirecting');
+            setTimeout(() => {
+              setLocation(destination);
+            }, 2000); // Show redirecting message for 2 seconds
+          }, 2000); // Show success message for 2 seconds
+        }
       }
     },
     onError: (error: any) => {

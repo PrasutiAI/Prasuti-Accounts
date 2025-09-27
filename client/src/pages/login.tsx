@@ -74,7 +74,7 @@ export default function Login() {
           }
         }
         
-        // Handle redirection (same logic as login success)
+        // Handle redirection with token inclusion for allowed domains
         try {
           const destinationUrl = new URL(validatedDestination);
           const currentOrigin = window.location.origin;
@@ -83,8 +83,31 @@ export default function Login() {
             // Same-origin redirect: use router navigation
             setLocation(destinationUrl.pathname + destinationUrl.search);
           } else {
-            // Cross-origin redirect: perform secure external navigation
-            window.location.replace(validatedDestination);
+            // Cross-origin redirect: append tokens to URL for allowed domains
+            let finalDestination = validatedDestination;
+            
+            // Get stored tokens
+            const accessToken = localStorage.getItem('accessToken');
+            const refreshToken = localStorage.getItem('refreshToken');
+            
+            if (accessToken && refreshToken) {
+              try {
+                const tokenResponse = await apiRequest('POST', '/api/auth/append-tokens-to-url', {
+                  url: validatedDestination,
+                  accessToken,
+                  refreshToken
+                });
+                const tokenData = await tokenResponse.json();
+                if (tokenData.urlWithTokens) {
+                  finalDestination = tokenData.urlWithTokens;
+                }
+              } catch (error) {
+                // If token appending fails, proceed with original URL
+                console.warn('Failed to append tokens to URL:', error);
+              }
+            }
+            
+            window.location.replace(finalDestination);
           }
         } catch (error) {
           // Fallback: treat as same-origin path if URL parsing fails
@@ -150,7 +173,7 @@ export default function Login() {
         }
       }
       
-      // Secure redirect handling - NEVER pass tokens in URLs
+      // Handle redirect with token inclusion for allowed domains
       try {
         const destinationUrl = new URL(validatedDestination);
         const currentOrigin = window.location.origin;
@@ -161,10 +184,26 @@ export default function Login() {
           // Tokens are already stored in localStorage and will be available
           setLocation(destinationUrl.pathname + destinationUrl.search);
         } else {
-          // Cross-origin redirect: perform secure external navigation
-          // External applications must implement proper OAuth/OIDC flow to obtain tokens
-          // NEVER include tokens in cross-origin redirects for security
-          window.location.replace(validatedDestination);
+          // Cross-origin redirect: append tokens to URL for allowed domains
+          let finalDestination = validatedDestination;
+          
+          // Add tokens to URL for allowed domain redirects
+          try {
+            const tokenResponse = await apiRequest('POST', '/api/auth/append-tokens-to-url', {
+              url: validatedDestination,
+              accessToken: data.accessToken,
+              refreshToken: data.refreshToken
+            });
+            const tokenData = await tokenResponse.json();
+            if (tokenData.urlWithTokens) {
+              finalDestination = tokenData.urlWithTokens;
+            }
+          } catch (error) {
+            // If token appending fails, proceed with original URL
+            console.warn('Failed to append tokens to URL:', error);
+          }
+          
+          window.location.replace(finalDestination);
         }
       } catch (error) {
         // Fallback: treat as same-origin path if URL parsing fails

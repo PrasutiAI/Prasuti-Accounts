@@ -5,6 +5,8 @@ import { auditService } from './audit.service';
 import { cryptoUtils } from '../utils/crypto';
 import { emailService } from './email.service';
 import type { LoginRequest, RegisterRequest, User } from '@shared/schema';
+import { appendTokensToUrl } from '../utils/token-url';
+import { validateRedirectUrl } from '../utils/domain-validation';
 
 export class AuthService {
   private readonly saltRounds = 12;
@@ -208,7 +210,7 @@ export class AuthService {
     return { accessToken: newAccessToken, refreshToken: newRefreshToken };
   }
 
-  async verifyEmail(token: string): Promise<{ redirectUrl?: string }> {
+  async verifyEmail(token: string, ipAddress?: string, userAgent?: string): Promise<{ redirectUrl?: string; accessToken?: string; refreshToken?: string }> {
     const verificationToken = await storage.getEmailVerificationToken(token);
     if (!verificationToken || verificationToken.expiresAt < new Date() || verificationToken.isUsed) {
       throw new Error('Invalid or expired verification token');
@@ -229,8 +231,43 @@ export class AuthService {
       details: { email_verified: true, success: true },
     });
 
-    // Return redirectUrl if available
-    return { redirectUrl: verificationToken.redirectUrl || undefined };
+    let result: { redirectUrl?: string; accessToken?: string; refreshToken?: string } = {};
+
+    // If there's a redirectUrl, generate tokens and potentially append them
+    if (verificationToken.redirectUrl) {
+      // Get the user to generate tokens
+      const user = await storage.getUser(verificationToken.userId);
+      if (user) {
+        // Generate tokens for the verified user
+        const accessToken = await jwtService.generateAccessToken(user);
+        const refreshToken = await this.generateRefreshToken(user.id, ipAddress, userAgent);
+        
+        // Get allowed domains and validate redirect URL first
+        const allowedDomains = await storage.getActiveAllowedDomains();
+        const validation = validateRedirectUrl(verificationToken.redirectUrl, allowedDomains);
+        
+        if (validation.isValid && validation.normalizedUrl) {
+          const urlWithTokens = appendTokensToUrl(validation.normalizedUrl, allowedDomains, {
+            accessToken,
+            refreshToken,
+            includeRefreshToken: false // Only include access token for security
+          });
+          
+          result = {
+            redirectUrl: urlWithTokens,
+            accessToken,
+            refreshToken
+          };
+        } else {
+          // Invalid redirect URL - don't return tokens or redirectUrl for security
+          result = {};
+        }
+      } else {
+        result.redirectUrl = verificationToken.redirectUrl;
+      }
+    }
+
+    return result;
   }
 
   async requestPasswordReset(email: string): Promise<{ success: boolean, message: string }> {

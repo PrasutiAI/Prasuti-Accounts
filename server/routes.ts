@@ -10,6 +10,7 @@ import { auditService } from "./services/audit.service";
 import { cryptoUtils } from "./utils/crypto";
 import { validateBody, validateQuery, validateParams, commonSchemas } from "./utils/validation";
 import { validateRedirectUrl } from "./utils/domain-validation";
+import { appendTokensToUrl } from "./utils/token-url";
 import { authenticateToken, requireRole, requirePermissions, optionalAuth, rateLimit } from "./middleware/auth.middleware";
 import { 
   authRateLimit, 
@@ -200,27 +201,66 @@ idm_failed_logins_24h ${failedLogins.count}
     }
   );
 
+  // Append tokens to URL for allowed domains (authenticated endpoint)
+  authRouter.post('/append-tokens-to-url',
+    authenticateToken, // Require authentication
+    apiRateLimit,
+    async (req, res) => {
+      try {
+        const { url, accessToken, refreshToken } = req.body;
+        
+        if (!url) {
+          return res.status(400).json({ message: 'URL is required' });
+        }
+        
+        if (!accessToken) {
+          return res.status(400).json({ message: 'Access token is required' });
+        }
+        
+        const allowedDomains = await storage.getActiveAllowedDomains();
+        const urlWithTokens = appendTokensToUrl(url, allowedDomains, {
+          accessToken,
+          refreshToken,
+          includeRefreshToken: false // Always false for security
+        });
+        
+        // Normalize response to avoid domain probing
+        res.json({ 
+          urlWithTokens: urlWithTokens
+        });
+      } catch (error) {
+        res.status(500).json({ message: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  );
+
   authRouter.post('/verify',
     validateBody(verifyTokenSchema),
     async (req, res) => {
       try {
-        const result = await authService.verifyEmail(req.body.token);
+        const result = await authService.verifyEmail(
+          req.body.token,
+          req.ip,
+          req.headers['user-agent']
+        );
         
-        // Validate redirect URL if it exists
+        // Critical: Re-validate redirect URL for security
         if (result.redirectUrl) {
           const allowedDomains = await storage.getActiveAllowedDomains();
           const validation = validateRedirectUrl(result.redirectUrl, allowedDomains);
           if (!validation.isValid) {
-            // Remove invalid redirect URL for security
+            // Remove invalid redirect URL and tokens for security
             result.redirectUrl = undefined;
-          } else {
-            result.redirectUrl = validation.normalizedUrl;
+            result.accessToken = undefined;
+            result.refreshToken = undefined;
           }
         }
         
         res.json({ 
           message: 'Email verified successfully',
-          redirectUrl: result.redirectUrl
+          redirectUrl: result.redirectUrl,
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken
         });
       } catch (error) {
         res.status(400).json({ message: error instanceof Error ? error.message : String(error) });
