@@ -76,45 +76,61 @@ export default function Login() {
         }
         
         // Handle redirection with JWT details appended to all redirect URLs
+        const currentOrigin = window.location.origin;
+        
+        // Convert relative URLs to absolute for processing
+        let absoluteDestination: string;
         try {
-          const destinationUrl = new URL(validatedDestination);
-          const currentOrigin = window.location.origin;
-          
-          // Get stored tokens
-          const accessToken = localStorage.getItem('accessToken');
-          const refreshToken = localStorage.getItem('refreshToken');
-          
-          // Append JWT details to all redirect URLs (both same-origin and cross-origin)
-          let finalDestination = validatedDestination;
-          
-          if (accessToken && refreshToken) {
-            try {
-              const tokenResponse = await apiRequest('POST', '/api/auth/append-tokens-to-url', {
-                url: validatedDestination,
-                accessToken,
-                refreshToken
-              });
-              const tokenData = await tokenResponse.json();
-              if (tokenData.urlWithTokens) {
-                finalDestination = tokenData.urlWithTokens;
-              }
-            } catch (error) {
-              // If token appending fails, proceed with original URL
-              console.warn('Failed to append tokens to URL:', error);
-            }
+          // If validatedDestination is relative, make it absolute
+          if (validatedDestination.startsWith('/')) {
+            absoluteDestination = currentOrigin + validatedDestination;
+          } else {
+            absoluteDestination = validatedDestination;
           }
+          
+          // Verify it's a valid URL
+          new URL(absoluteDestination);
+        } catch (error) {
+          // Fallback for invalid URLs
+          setLocation('/dashboard');
+          return;
+        }
+        
+        // Append JWT details to all redirect URLs (both same-origin and cross-origin)
+        let finalDestination = absoluteDestination;
+        
+        // Get stored tokens
+        const accessToken = localStorage.getItem('accessToken');
+        
+        if (accessToken) {
+          try {
+            const tokenResponse = await apiRequest('POST', '/api/auth/append-tokens-to-url', {
+              url: absoluteDestination,
+              accessToken
+            });
+            const tokenData = await tokenResponse.json();
+            if (tokenData.urlWithTokens) {
+              finalDestination = tokenData.urlWithTokens;
+            }
+          } catch (error) {
+            // If token appending fails, proceed with original URL
+            console.warn('Failed to append tokens to URL:', error);
+          }
+        }
+        
+        try {
+          const destinationUrl = new URL(finalDestination);
           
           if (destinationUrl.origin === currentOrigin) {
             // Same-origin redirect: use router navigation with JWT details in URL
-            const finalUrl = new URL(finalDestination);
-            setLocation(finalUrl.pathname + finalUrl.search + finalUrl.hash);
+            setLocation(destinationUrl.pathname + destinationUrl.search + destinationUrl.hash);
           } else {
             // Cross-origin redirect: use full URL replacement
             window.location.replace(finalDestination);
           }
         } catch (error) {
           // Fallback: treat as same-origin path if URL parsing fails
-          setLocation(validatedDestination.startsWith('/') ? validatedDestination : '/dashboard');
+          setLocation('/dashboard');
         }
       };
 
@@ -150,8 +166,47 @@ export default function Login() {
         description: `Welcome back, ${data.user.name}!`,
       });
       
-      // Use redirect URL with JWT details appended (if provided by backend)
-      const finalDestination = data.redirectUrl || "/dashboard";
+      // Use redirect URL with JWT details appended (if provided by backend), otherwise default
+      let finalDestination = data.redirectUrl || "/dashboard";
+      
+      // If no redirectUrl was provided by backend, append JWT details to default destination
+      if (!data.redirectUrl) {
+        const currentOrigin = window.location.origin;
+        
+        // Convert relative URLs to absolute for processing
+        let absoluteDestination: string;
+        try {
+          // If finalDestination is relative, make it absolute
+          if (finalDestination.startsWith('/')) {
+            absoluteDestination = currentOrigin + finalDestination;
+          } else {
+            absoluteDestination = finalDestination;
+          }
+          
+          // Verify it's a valid URL
+          new URL(absoluteDestination);
+        } catch (error) {
+          // Fallback for invalid URLs
+          setLocation('/dashboard');
+          return;
+        }
+        
+        // Append JWT details to default destination
+        try {
+          const tokenResponse = await apiRequest('POST', '/api/auth/append-tokens-to-url', {
+            url: absoluteDestination,
+            accessToken: data.accessToken
+          });
+          const tokenData = await tokenResponse.json();
+          if (tokenData.urlWithTokens) {
+            finalDestination = tokenData.urlWithTokens;
+          }
+        } catch (error) {
+          // If token appending fails, use absolute destination
+          console.warn('Failed to append tokens to URL:', error);
+          finalDestination = absoluteDestination;
+        }
+      }
       
       // Handle redirect 
       try {
@@ -168,7 +223,7 @@ export default function Login() {
         }
       } catch (error) {
         // Fallback: treat as same-origin path if URL parsing fails
-        setLocation(finalDestination.startsWith('/') ? finalDestination : '/dashboard');
+        setLocation('/dashboard');
       }
     },
     onError: (error: any) => {

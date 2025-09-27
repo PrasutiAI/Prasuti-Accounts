@@ -219,13 +219,12 @@ idm_failed_logins_24h ${failedLogins.count}
     }
   );
 
-  // Append tokens to URL for allowed domains (authenticated endpoint)
+  // Append tokens to URL for allowed domains (token validation endpoint)
   authRouter.post('/append-tokens-to-url',
-    authenticateToken, // Require authentication
     apiRateLimit,
     async (req, res) => {
       try {
-        const { url, accessToken, refreshToken } = req.body;
+        const { url, accessToken } = req.body;
         
         if (!url) {
           return res.status(400).json({ message: 'URL is required' });
@@ -235,17 +234,39 @@ idm_failed_logins_24h ${failedLogins.count}
           return res.status(400).json({ message: 'Access token is required' });
         }
         
-        const allowedDomains = await storage.getActiveAllowedDomains();
-        const urlWithTokens = appendTokensToUrl(url, allowedDomains, {
-          accessToken,
-          refreshToken,
-          includeRefreshToken: false // Always false for security
-        });
-        
-        // Normalize response to avoid domain probing
-        res.json({ 
-          urlWithTokens: urlWithTokens
-        });
+        // Validate the provided access token
+        try {
+          const payload = await jwtService.verifyToken(accessToken);
+          
+          // Verify user still exists and is active
+          const user = await storage.getUser(payload.sub);
+          if (!user || !user.isActive) {
+            return res.status(401).json({ message: 'User not found or inactive' });
+          }
+          
+          // Validate and normalize the URL against allowed domains
+          const allowedDomains = await storage.getActiveAllowedDomains();
+          const validation = validateRedirectUrl(url, allowedDomains);
+          
+          if (!validation.isValid || !validation.normalizedUrl) {
+            return res.status(400).json({ message: 'Invalid or disallowed redirect URL' });
+          }
+          
+          // Generate fresh access token for URL appending (no refresh token needed)
+          const freshAccessToken = await jwtService.generateAccessToken(user);
+          
+          const urlWithTokens = appendTokensToUrl(validation.normalizedUrl, allowedDomains, {
+            accessToken: freshAccessToken,
+            includeRefreshToken: false // Always false for security
+          });
+          
+          // Normalize response to avoid domain probing
+          res.json({ 
+            urlWithTokens: urlWithTokens
+          });
+        } catch (tokenError) {
+          return res.status(401).json({ message: 'Invalid or expired access token' });
+        }
       } catch (error) {
         res.status(500).json({ message: error instanceof Error ? error.message : String(error) });
       }
