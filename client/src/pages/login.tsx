@@ -52,7 +52,7 @@ export default function Login() {
       const response = await apiRequest('POST', '/api/auth/login', data);
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       // Store tokens
       localStorage.setItem('accessToken', data.accessToken);
       localStorage.setItem('refreshToken', data.refreshToken);
@@ -62,9 +62,38 @@ export default function Login() {
         description: `Welcome back, ${data.user.name}!`,
       });
       
-      // Redirect to the intended destination or default to dashboard with JWT tokens
-      const destination = redirectUrl || "/dashboard";
-      const redirectUrlWithTokens = new URL(destination, window.location.origin);
+      // Validate redirect URL if provided
+      let validatedDestination = "/dashboard";
+      
+      if (redirectUrl) {
+        try {
+          const validationResponse = await apiRequest('POST', '/api/auth/validate-redirect', {
+            redirectUrl: redirectUrl
+          });
+          const validationData = await validationResponse.json();
+          
+          if (validationData.valid) {
+            validatedDestination = validationData.normalizedUrl;
+          } else {
+            toast({
+              title: "Invalid redirect URL",
+              description: `Redirecting to dashboard instead. ${validationData.error}`,
+              variant: "destructive",
+            });
+            validatedDestination = "/dashboard";
+          }
+        } catch (error) {
+          toast({
+            title: "Redirect validation failed",
+            description: "Redirecting to dashboard for security.",
+            variant: "destructive",
+          });
+          validatedDestination = "/dashboard";
+        }
+      }
+      
+      // Redirect to the validated destination with JWT tokens
+      const redirectUrlWithTokens = new URL(validatedDestination, window.location.origin);
       redirectUrlWithTokens.searchParams.append('accessToken', data.accessToken);
       redirectUrlWithTokens.searchParams.append('refreshToken', data.refreshToken);
       

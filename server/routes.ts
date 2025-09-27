@@ -9,6 +9,7 @@ import { mfaService } from "./services/mfa.service";
 import { auditService } from "./services/audit.service";
 import { cryptoUtils } from "./utils/crypto";
 import { validateBody, validateQuery, validateParams, commonSchemas } from "./utils/validation";
+import { validateRedirectUrl } from "./utils/domain-validation";
 import { authenticateToken, requireRole, requirePermissions, optionalAuth, rateLimit } from "./middleware/auth.middleware";
 import { 
   authRateLimit, 
@@ -107,6 +108,19 @@ idm_failed_logins_24h ${failedLogins.count}
     validateBody(registerSchema),
     async (req, res) => {
       try {
+        // Validate redirect URL if provided
+        if (req.body.redirectUrl) {
+          const allowedDomains = await storage.getActiveAllowedDomains();
+          const validation = validateRedirectUrl(req.body.redirectUrl, allowedDomains);
+          if (!validation.isValid) {
+            return res.status(400).json({ 
+              message: `Invalid redirect URL: ${validation.error}`
+            });
+          }
+          // Use normalized URL
+          req.body.redirectUrl = validation.normalizedUrl;
+        }
+
         const result = await authService.register(req.body);
         
         res.status(201).json({
@@ -155,11 +169,55 @@ idm_failed_logins_24h ${failedLogins.count}
     }
   );
 
+  // Redirect URL validation endpoint
+  authRouter.post('/validate-redirect',
+    apiRateLimit,
+    async (req, res) => {
+      try {
+        const { redirectUrl } = req.body;
+        
+        if (!redirectUrl) {
+          return res.status(400).json({ message: 'Redirect URL is required' });
+        }
+        
+        const allowedDomains = await storage.getActiveAllowedDomains();
+        const validation = validateRedirectUrl(redirectUrl, allowedDomains);
+        
+        if (validation.isValid) {
+          res.json({ 
+            valid: true, 
+            normalizedUrl: validation.normalizedUrl 
+          });
+        } else {
+          res.json({ 
+            valid: false, 
+            error: validation.error 
+          });
+        }
+      } catch (error) {
+        res.status(500).json({ message: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  );
+
   authRouter.post('/verify',
     validateBody(verifyTokenSchema),
     async (req, res) => {
       try {
         const result = await authService.verifyEmail(req.body.token);
+        
+        // Validate redirect URL if it exists
+        if (result.redirectUrl) {
+          const allowedDomains = await storage.getActiveAllowedDomains();
+          const validation = validateRedirectUrl(result.redirectUrl, allowedDomains);
+          if (!validation.isValid) {
+            // Remove invalid redirect URL for security
+            result.redirectUrl = undefined;
+          } else {
+            result.redirectUrl = validation.normalizedUrl;
+          }
+        }
+        
         res.json({ 
           message: 'Email verified successfully',
           redirectUrl: result.redirectUrl
