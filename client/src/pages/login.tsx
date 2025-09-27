@@ -62,9 +62,13 @@ export default function Login() {
         description: `Welcome back, ${data.user.name}!`,
       });
       
-      // Redirect to the intended destination or default to dashboard
+      // Redirect to the intended destination or default to dashboard with JWT tokens
       const destination = redirectUrl || "/dashboard";
-      setLocation(destination);
+      const redirectUrlWithTokens = new URL(destination, window.location.origin);
+      redirectUrlWithTokens.searchParams.append('accessToken', data.accessToken);
+      redirectUrlWithTokens.searchParams.append('refreshToken', data.refreshToken);
+      
+      setLocation(redirectUrlWithTokens.pathname + redirectUrlWithTokens.search);
     },
     onError: (error: any) => {
       const message = error.message || "Login failed";
