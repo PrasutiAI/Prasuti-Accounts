@@ -31,6 +31,13 @@ function Router() {
         </ProtectedRoute>
       )} />
       
+      {/* Dashboard route - same as root */}
+      <Route path="/dashboard" component={() => (
+        <ProtectedRoute requiredRoles={['admin', 'developer', 'user', 'guest']}>
+          <Dashboard />
+        </ProtectedRoute>
+      )} />
+      
       {/* Public authentication routes */}
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />

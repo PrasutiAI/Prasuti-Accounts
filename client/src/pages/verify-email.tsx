@@ -32,16 +32,31 @@ export default function VerifyEmail() {
       });
       
       // Handle redirect after successful verification
-      const destination = data.redirectUrl || "/login";
-      setRedirectUrl(destination);
-      
-      // Show success message briefly, then redirect
-      setTimeout(() => {
-        setVerificationStatus('redirecting');
+      if (data.redirectUrl) {
+        // If there's a redirectUrl, redirect to login with the redirectUrl parameter
+        const loginWithRedirect = `/login?redirectUrl=${encodeURIComponent(data.redirectUrl)}`;
+        setRedirectUrl(loginWithRedirect);
+        
+        // Show success message briefly, then redirect to login
         setTimeout(() => {
-          setLocation(destination);
-        }, 2000); // Show redirecting message for 2 seconds
-      }, 2000); // Show success message for 2 seconds
+          setVerificationStatus('redirecting');
+          setTimeout(() => {
+            setLocation(loginWithRedirect);
+          }, 2000); // Show redirecting message for 2 seconds
+        }, 2000); // Show success message for 2 seconds
+      } else {
+        // No redirectUrl, just go to login
+        const destination = "/login";
+        setRedirectUrl(destination);
+        
+        // Show success message briefly, then redirect
+        setTimeout(() => {
+          setVerificationStatus('redirecting');
+          setTimeout(() => {
+            setLocation(destination);
+          }, 2000); // Show redirecting message for 2 seconds
+        }, 2000); // Show success message for 2 seconds
+      }
     },
     onError: (error: any) => {
       setVerificationStatus('error');
@@ -102,7 +117,7 @@ export default function VerifyEmail() {
             <div className="space-y-3">
               <Link href={redirectUrl || "/login"}>
                 <Button className="w-full" data-testid="button-go-to-login">
-                  Continue to {redirectUrl && !redirectUrl.includes('/login') ? 'Application' : 'Sign In'}
+                  Continue to Sign In
                 </Button>
               </Link>
             </div>
