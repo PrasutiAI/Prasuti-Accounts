@@ -135,6 +135,19 @@ export const jwksKeys = pgTable("jwks_keys", {
   expiresIdx: index("jwks_keys_expires_idx").on(table.expiresAt),
 }));
 
+// Allowed domains table - for redirect URL validation
+export const allowedDomains = pgTable("allowed_domains", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  domain: text("domain").notNull().unique(),
+  description: text("description"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+}, (table) => ({
+  domainIdx: index("allowed_domains_domain_idx").on(table.domain),
+  activeIdx: index("allowed_domains_active_idx").on(table.isActive),
+}));
+
 // Relations
 export const usersRelations = relations(users, ({ one, many }) => ({
   role: one(roles, { fields: [users.roleId], references: [roles.id] }),
@@ -260,6 +273,16 @@ export const selectClientSchema = createSelectSchema(clients).omit({
   clientSecretHash: true,
 });
 
+export const insertAllowedDomainSchema = createInsertSchema(allowedDomains).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const selectAllowedDomainSchema = createSelectSchema(allowedDomains);
+
+export const updateAllowedDomainSchema = insertAllowedDomainSchema.partial();
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -291,6 +314,11 @@ export type InsertClient = z.infer<typeof insertClientSchema>;
 export type SelectClient = z.infer<typeof selectClientSchema>;
 
 export type JwksKey = typeof jwksKeys.$inferSelect;
+
+export type AllowedDomain = typeof allowedDomains.$inferSelect;
+export type InsertAllowedDomain = z.infer<typeof insertAllowedDomainSchema>;
+export type SelectAllowedDomain = z.infer<typeof selectAllowedDomainSchema>;
+export type UpdateAllowedDomain = z.infer<typeof updateAllowedDomainSchema>;
 
 // Authentication-related schemas
 export const loginSchema = z.object({
