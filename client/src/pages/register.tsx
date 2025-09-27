@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Shield, UserPlus } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { registerSchema as sharedRegisterSchema } from "@shared/schema";
+import { useEffect, useState } from "react";
 
 const registerSchema = sharedRegisterSchema.extend({
   confirmPassword: z.string().min(8, "Please confirm your password"),
@@ -24,6 +25,16 @@ type RegisterForm = z.infer<typeof registerSchema>;
 export default function Register() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
+
+  // Extract redirectUrl from query parameters
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const redirect = urlParams.get('redirectUrl');
+    if (redirect) {
+      setRedirectUrl(redirect);
+    }
+  }, []);
 
   const form = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
@@ -39,7 +50,11 @@ export default function Register() {
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterForm) => {
       const { confirmPassword, ...registerData } = data;
-      const response = await apiRequest('POST', '/api/auth/register', registerData);
+      // Include redirectUrl in registration data if provided
+      const requestData = redirectUrl 
+        ? { ...registerData, redirectUrl }
+        : registerData;
+      const response = await apiRequest('POST', '/api/auth/register', requestData);
       return response.json();
     },
     onSuccess: (data) => {
@@ -48,8 +63,11 @@ export default function Register() {
         description: data.message || "Please check your email for verification instructions.",
       });
       
-      // Redirect to login page with a success message
-      setLocation("/login?registered=true");
+      // Redirect to login page with success message and redirectUrl if provided
+      const loginUrl = redirectUrl 
+        ? `/login?registered=true&redirectUrl=${encodeURIComponent(redirectUrl)}`
+        : "/login?registered=true";
+      setLocation(loginUrl);
     },
     onError: (error: any) => {
       const message = error.message || "Registration failed";

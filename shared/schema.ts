@@ -58,11 +58,12 @@ export const userSessions = pgTable("user_sessions", {
   revokedIdx: index("sessions_revoked_idx").on(table.isRevoked),
 }));
 
-// EmailVerificationTokens table - Updated with token hashing
+// EmailVerificationTokens table - Updated with token hashing and redirect support
 export const emailVerificationTokens = pgTable("email_verification_tokens", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   tokenHash: text("token_hash").notNull().unique(), // Store only hashed token
+  redirectUrl: text("redirect_url"), // Optional redirect URL after verification
   expiresAt: timestamp("expires_at").notNull(),
   isUsed: boolean("is_used").notNull().default(false),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
@@ -220,6 +221,7 @@ export const insertEmailVerificationTokenSchema = createInsertSchema(emailVerifi
   tokenHash: true, // Handle token hashing separately
 }).extend({
   token: z.string().describe("Verification token (will be hashed before storage)"),
+  redirectUrl: z.string().url().optional().describe("Optional redirect URL after successful verification"),
 });
 
 export const selectEmailVerificationTokenSchema = createSelectSchema(emailVerificationTokens).omit({
@@ -308,6 +310,8 @@ export const loginSchema = z.object({
 // Registration schema excludes roleId since it's assigned automatically by AuthService
 export const registerSchema = insertUserSchema.omit({
   roleId: true, // Role is assigned automatically during registration
+}).extend({
+  redirectUrl: z.string().url().optional().describe("Optional redirect URL after successful registration and verification"),
 });
 
 export const refreshTokenSchema = z.object({

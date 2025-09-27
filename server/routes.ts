@@ -157,8 +157,11 @@ idm_failed_logins_24h ${failedLogins.count}
     validateBody(verifyTokenSchema),
     async (req, res) => {
       try {
-        await authService.verifyEmail(req.body.token);
-        res.json({ message: 'Email verified successfully' });
+        const result = await authService.verifyEmail(req.body.token);
+        res.json({ 
+          message: 'Email verified successfully',
+          redirectUrl: result.redirectUrl
+        });
       } catch (error) {
         res.status(400).json({ message: error instanceof Error ? error.message : String(error) });
       }

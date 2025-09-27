@@ -10,7 +10,7 @@ export class AuthService {
   private readonly saltRounds = 12;
   private readonly refreshTokenTtl = 30 * 24 * 60 * 60 * 1000; // 30 days
 
-  async register(userData: RegisterRequest): Promise<{ user: Omit<User, 'passwordHash'>, message: string }> {
+  async register(userData: RegisterRequest & { redirectUrl?: string }): Promise<{ user: Omit<User, 'passwordHash'>, message: string }> {
     // Check if user already exists
     const existingUser = await storage.getUserByEmail(userData.email);
     if (existingUser) {
@@ -38,12 +38,18 @@ export class AuthService {
     await storage.createEmailVerificationToken({
       userId: user.id,
       token: verificationToken, // Will be hashed in storage layer
+      redirectUrl: userData.redirectUrl, // Include redirectUrl if provided
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
     });
 
     // Send verification email
     const baseUrl = process.env.APP_URL || process.env.VITE_APP_URL || 'http://localhost:5000';
-    const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
+    let verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
+    
+    // Add redirectUrl to verification link if provided
+    if (userData.redirectUrl) {
+      verificationUrl += `&redirectUrl=${encodeURIComponent(userData.redirectUrl)}`;
+    }
     const emailSent = await emailService.sendVerificationEmail({
       to: user.email,
       name: user.name,
@@ -202,7 +208,7 @@ export class AuthService {
     return { accessToken: newAccessToken, refreshToken: newRefreshToken };
   }
 
-  async verifyEmail(token: string): Promise<void> {
+  async verifyEmail(token: string): Promise<{ redirectUrl?: string }> {
     const verificationToken = await storage.getEmailVerificationToken(token);
     if (!verificationToken || verificationToken.expiresAt < new Date() || verificationToken.isUsed) {
       throw new Error('Invalid or expired verification token');
@@ -222,6 +228,9 @@ export class AuthService {
       action: 'register',
       details: { email_verified: true, success: true },
     });
+
+    // Return redirectUrl if available
+    return { redirectUrl: verificationToken.redirectUrl || undefined };
   }
 
   async requestPasswordReset(email: string): Promise<{ success: boolean, message: string }> {

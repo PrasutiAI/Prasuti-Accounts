@@ -17,16 +17,24 @@ type LoginForm = LoginRequest;
 export default function Login() {
   const [, setLocation] = useLocation();
   const [requiresMfa, setRequiresMfa] = useState(false);
+  const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
   const { toast } = useToast();
   
-  // Check for registration success message
+  // Check for registration success message and extract redirectUrl
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
+    
     if (urlParams.get('registered') === 'true') {
       toast({
         title: "Registration successful",
         description: "Please check your email for verification instructions before signing in.",
       });
+    }
+    
+    // Extract redirectUrl from query parameters
+    const redirect = urlParams.get('redirectUrl');
+    if (redirect) {
+      setRedirectUrl(redirect);
     }
   }, [toast]);
 
@@ -54,7 +62,9 @@ export default function Login() {
         description: `Welcome back, ${data.user.name}!`,
       });
       
-      setLocation("/");
+      // Redirect to the intended destination or default to dashboard
+      const destination = redirectUrl || "/dashboard";
+      setLocation(destination);
     },
     onError: (error: any) => {
       const message = error.message || "Login failed";
@@ -190,7 +200,7 @@ export default function Login() {
             </div>
             <div className="flex items-center justify-center space-x-1">
               <span>Don't have an account?</span>
-              <Link href="/register">
+              <Link href={redirectUrl ? `/register?redirectUrl=${encodeURIComponent(redirectUrl)}` : "/register"}>
                 <Button variant="link" className="p-0 h-auto font-semibold text-primary hover:text-primary/80 transition-colors duration-200" data-testid="link-register">
                   Sign up
                 </Button>

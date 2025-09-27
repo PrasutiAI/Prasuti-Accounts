@@ -12,7 +12,8 @@ export default function VerifyEmail() {
   const [, setLocation] = useLocation();
   const search = useSearch();
   const { toast } = useToast();
-  const [verificationStatus, setVerificationStatus] = useState<'loading' | 'success' | 'error' | 'invalid'>('loading');
+  const [verificationStatus, setVerificationStatus] = useState<'loading' | 'success' | 'error' | 'invalid' | 'redirecting'>('loading');
+  const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
 
   // Extract token from URL parameters
   const urlParams = new URLSearchParams(search);
@@ -29,6 +30,18 @@ export default function VerifyEmail() {
         title: "Email verified successfully",
         description: data.message || "Your email has been verified. You can now sign in.",
       });
+      
+      // Handle redirect after successful verification
+      const destination = data.redirectUrl || "/login";
+      setRedirectUrl(destination);
+      
+      // Show success message briefly, then redirect
+      setTimeout(() => {
+        setVerificationStatus('redirecting');
+        setTimeout(() => {
+          setLocation(destination);
+        }, 2000); // Show redirecting message for 2 seconds
+      }, 2000); // Show success message for 2 seconds
     },
     onError: (error: any) => {
       setVerificationStatus('error');
@@ -84,15 +97,30 @@ export default function VerifyEmail() {
             </div>
             <CardTitle className="text-xl font-semibold mb-2">Email verified!</CardTitle>
             <CardDescription className="mb-6" data-testid="text-success">
-              Your email has been successfully verified. You can now sign in to your account.
+              Your email has been successfully verified. Redirecting you shortly...
             </CardDescription>
             <div className="space-y-3">
-              <Link href="/login">
+              <Link href={redirectUrl || "/login"}>
                 <Button className="w-full" data-testid="button-go-to-login">
-                  Sign In
+                  Continue to {redirectUrl && !redirectUrl.includes('/login') ? 'Application' : 'Sign In'}
                 </Button>
               </Link>
             </div>
+          </div>
+        );
+
+      case 'redirecting':
+        return (
+          <div className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center">
+                <Loader2 className="h-6 w-6 text-primary-foreground animate-spin" />
+              </div>
+            </div>
+            <CardTitle className="text-xl font-semibold mb-2">Redirecting...</CardTitle>
+            <CardDescription data-testid="text-redirecting">
+              Taking you to your destination...
+            </CardDescription>
           </div>
         );
 
