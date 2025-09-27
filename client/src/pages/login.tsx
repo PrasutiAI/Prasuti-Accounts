@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { Shield } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { loginSchema, type LoginRequest } from "@shared/schema";
@@ -19,6 +20,7 @@ export default function Login() {
   const [requiresMfa, setRequiresMfa] = useState(false);
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
   const { toast } = useToast();
+  const { isAuthenticated, isLoading } = useAuth();
   
   // Check for registration success message and extract redirectUrl
   useEffect(() => {
@@ -37,6 +39,62 @@ export default function Login() {
       setRedirectUrl(redirect);
     }
   }, [toast]);
+
+  // Auto-redirect if user is already authenticated
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      // User is already logged in, redirect them to their destination
+      const redirectToDestination = async () => {
+        let validatedDestination = "/dashboard";
+        
+        if (redirectUrl) {
+          try {
+            const validationResponse = await apiRequest('POST', '/api/auth/validate-redirect', {
+              redirectUrl: redirectUrl
+            });
+            const validationData = await validationResponse.json();
+            
+            if (validationData.valid) {
+              validatedDestination = validationData.normalizedUrl;
+            } else {
+              toast({
+                title: "Invalid redirect URL",
+                description: `Redirecting to dashboard instead. ${validationData.error}`,
+                variant: "destructive",
+              });
+              validatedDestination = "/dashboard";
+            }
+          } catch (error) {
+            toast({
+              title: "Redirect validation failed",
+              description: "Redirecting to dashboard for security.",
+              variant: "destructive",
+            });
+            validatedDestination = "/dashboard";
+          }
+        }
+        
+        // Handle redirection (same logic as login success)
+        try {
+          const destinationUrl = new URL(validatedDestination);
+          const currentOrigin = window.location.origin;
+          
+          if (destinationUrl.origin === currentOrigin) {
+            // Same-origin redirect: use router navigation
+            setLocation(destinationUrl.pathname + destinationUrl.search);
+          } else {
+            // Cross-origin redirect: perform secure external navigation
+            window.location.replace(validatedDestination);
+          }
+        } catch (error) {
+          // Fallback: treat as same-origin path if URL parsing fails
+          setLocation(validatedDestination.startsWith('/') ? validatedDestination : '/dashboard');
+        }
+      };
+
+      redirectToDestination();
+    }
+  }, [isLoading, isAuthenticated, redirectUrl, setLocation, toast]);
 
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
