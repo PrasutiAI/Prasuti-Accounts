@@ -7,17 +7,19 @@ import { z } from "zod";
 export const roleEnum = pgEnum('role', ['admin', 'developer', 'user', 'guest']);
 export const auditActionEnum = pgEnum('audit_action', ['login', 'logout', 'register', 'password_change', 'mfa_enable', 'mfa_disable', 'role_change', 'user_create', 'user_update', 'user_delete', 'key_rotation', 'api_key_create', 'api_key_revoke']);
 
-// Users table - Updated with security fixes
+// Users table - Updated with security fixes and Google OAuth support
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").notNull().unique(),
   phoneNumber: text("phone_number"), // Temporary: unique constraint removed to allow migration without prompts
   name: text("name").notNull(),
-  passwordHash: text("password_hash").notNull(), // Renamed for clarity and security
+  passwordHash: text("password_hash"), // Made optional for OAuth users
   roleId: uuid("role_id").notNull().references(() => roles.id), // FK to roles table instead of enum
   isEmailVerified: boolean("is_email_verified").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   mfaSecretEncrypted: text("mfa_secret_encrypted"), // Encrypted at rest for security
+  googleId: text("google_id"), // Google OAuth user ID
+  profilePicture: text("profile_picture"), // Profile picture URL
   lastLogin: timestamp("last_login"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),

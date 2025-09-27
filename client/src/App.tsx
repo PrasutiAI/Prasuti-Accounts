@@ -9,6 +9,7 @@ import Register from "@/pages/register";
 import ForgotPassword from "@/pages/forgot-password";
 import ResetPassword from "@/pages/reset-password";
 import VerifyEmail from "@/pages/verify-email";
+import OAuthSuccess from "@/pages/oauth-success";
 import Users from "@/pages/users";
 import Settings from "@/pages/settings";
 import Roles from "@/pages/roles";
@@ -44,6 +45,7 @@ function Router() {
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/verify-email" component={VerifyEmail} />
+      <Route path="/oauth/success" component={OAuthSuccess} />
       
       {/* Users page - admin and developer access */}
       <Route path="/users" component={() => (
