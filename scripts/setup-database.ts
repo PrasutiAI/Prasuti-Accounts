@@ -142,6 +142,21 @@ async function initializeDefaultRoles(): Promise<boolean> {
   }
 }
 
+async function initializeDefaultAllowedDomains(): Promise<boolean> {
+  try {
+    console.log('🌐 Initializing default allowed domains...');
+    
+    const initDomainsModule = await import('./init-default-domains');
+    await initDomainsModule.initDefaultAllowedDomains();
+    
+    console.log('✅ Default allowed domains initialized successfully');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to initialize default allowed domains:', error instanceof Error ? error.message : String(error));
+    return false;
+  }
+}
+
 async function initializeJwtKeys(): Promise<boolean> {
   try {
     console.log('🔑 Initializing JWT keys...');
@@ -195,7 +210,12 @@ export async function setupDatabase(options: SetupOptions = {}): Promise<boolean
     return false;
   }
 
-  // Step 6: Initialize JWT keys
+  // Step 6: Initialize default allowed domains
+  if (!(await initializeDefaultAllowedDomains())) {
+    return false;
+  }
+
+  // Step 7: Initialize JWT keys
   if (!(await initializeJwtKeys())) {
     return false;
   }
