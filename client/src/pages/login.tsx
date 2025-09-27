@@ -92,12 +92,26 @@ export default function Login() {
         }
       }
       
-      // Redirect to the validated destination with JWT tokens
-      const redirectUrlWithTokens = new URL(validatedDestination, window.location.origin);
-      redirectUrlWithTokens.searchParams.append('accessToken', data.accessToken);
-      redirectUrlWithTokens.searchParams.append('refreshToken', data.refreshToken);
-      
-      setLocation(redirectUrlWithTokens.pathname + redirectUrlWithTokens.search);
+      // Secure redirect handling - NEVER pass tokens in URLs
+      try {
+        const destinationUrl = new URL(validatedDestination);
+        const currentOrigin = window.location.origin;
+        
+        // Check if redirect is to same origin or external
+        if (destinationUrl.origin === currentOrigin) {
+          // Same-origin redirect: use router navigation
+          // Tokens are already stored in localStorage and will be available
+          setLocation(destinationUrl.pathname + destinationUrl.search);
+        } else {
+          // Cross-origin redirect: perform secure external navigation
+          // External applications must implement proper OAuth/OIDC flow to obtain tokens
+          // NEVER include tokens in cross-origin redirects for security
+          window.location.replace(validatedDestination);
+        }
+      } catch (error) {
+        // Fallback: treat as same-origin path if URL parsing fails
+        setLocation(validatedDestination.startsWith('/') ? validatedDestination : '/dashboard');
+      }
     },
     onError: (error: any) => {
       const message = error.message || "Login failed";
