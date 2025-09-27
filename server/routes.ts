@@ -30,6 +30,8 @@ import {
   changePasswordSchema,
   enableMfaSchema,
   insertClientSchema,
+  insertAllowedDomainSchema,
+  updateAllowedDomainSchema,
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -457,6 +459,109 @@ idm_failed_logins_24h ${failedLogins.count}
         });
 
         res.json({ message: 'Keys rotated successfully', kid: result.kid });
+      } catch (error) {
+        res.status(500).json({ message: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  );
+
+  // Allowed domains routes
+  adminRouter.get('/allowed-domains',
+    authenticateToken,
+    requirePermissions('system', 'read'),
+    async (req, res) => {
+      try {
+        const domains = await storage.getAllAllowedDomains();
+        res.json(domains);
+      } catch (error) {
+        res.status(500).json({ message: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  );
+
+  adminRouter.post('/allowed-domains',
+    authenticateToken,
+    heavyApiRateLimit,
+    requirePermissions('system', 'admin'),
+    validateBody(insertAllowedDomainSchema),
+    async (req, res) => {
+      try {
+        const domain = await storage.createAllowedDomain(req.body);
+        
+        await auditService.log({
+          actorId: req.user?.id,
+          action: 'user_create', // Closest available action for domain creation
+          resource: 'allowed_domain',
+          resourceId: domain.id,
+          metadata: { domain: domain.domain, description: domain.description },
+          success: true,
+        });
+
+        res.status(201).json(domain);
+      } catch (error) {
+        res.status(400).json({ message: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  );
+
+  adminRouter.put('/allowed-domains/:id',
+    authenticateToken,
+    heavyApiRateLimit,
+    requirePermissions('system', 'admin'),
+    validateParams(z.object({ id: z.string().uuid() })),
+    validateBody(updateAllowedDomainSchema),
+    async (req, res) => {
+      try {
+        const domain = await storage.updateAllowedDomain(req.params.id, req.body);
+        
+        if (!domain) {
+          return res.status(404).json({ message: 'Allowed domain not found' });
+        }
+
+        await auditService.log({
+          actorId: req.user?.id,
+          action: 'user_update', // Closest available action for domain update
+          resource: 'allowed_domain',
+          resourceId: domain.id,
+          metadata: { domain: domain.domain, description: domain.description },
+          success: true,
+        });
+
+        res.json(domain);
+      } catch (error) {
+        res.status(400).json({ message: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  );
+
+  adminRouter.delete('/allowed-domains/:id',
+    authenticateToken,
+    heavyApiRateLimit,
+    requirePermissions('system', 'admin'),
+    validateParams(z.object({ id: z.string().uuid() })),
+    async (req, res) => {
+      try {
+        const domain = await storage.getAllowedDomain(req.params.id);
+        if (!domain) {
+          return res.status(404).json({ message: 'Allowed domain not found' });
+        }
+
+        const deleted = await storage.deleteAllowedDomain(req.params.id);
+        
+        if (deleted) {
+          await auditService.log({
+            actorId: req.user?.id,
+            action: 'user_delete', // Closest available action for domain deletion
+            resource: 'allowed_domain',
+            resourceId: req.params.id,
+            metadata: { domain: domain.domain },
+            success: true,
+          });
+
+          res.json({ message: 'Allowed domain deleted successfully' });
+        } else {
+          res.status(404).json({ message: 'Allowed domain not found' });
+        }
       } catch (error) {
         res.status(500).json({ message: error instanceof Error ? error.message : String(error) });
       }
