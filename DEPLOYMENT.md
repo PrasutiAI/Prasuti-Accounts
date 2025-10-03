@@ -56,15 +56,21 @@ Update your deployment configuration to run database setup during build:
 In your deployment settings (`.replit` file or Publishing UI), configure:
 
 ```
-Build command: sh -c "npm run build && tsx scripts/setup-database.ts"
+Build command: bash scripts/production-build.sh
+Run command: npm run start
+```
+
+Or manually:
+```
+Build command: sh -c "export NODE_ENV=production && npm run build && tsx scripts/setup-database.ts"
 Run command: npm run start
 ```
 
 **For Other Platforms:**
 
-Ensure your build command includes:
+Ensure your build command sets NODE_ENV=production:
 ```bash
-npm run build && tsx scripts/setup-database.ts
+export NODE_ENV=production && npm run build && tsx scripts/setup-database.ts
 ```
 
 ## Environment Variables

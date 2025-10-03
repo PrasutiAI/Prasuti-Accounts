@@ -71,12 +71,6 @@ async function pushDatabaseSchema(options: SetupOptions): Promise<boolean> {
   try {
     console.log('🔄 Pushing database schema...');
     
-    // In production, skip schema push as it should be done during deployment
-    if (process.env.NODE_ENV === 'production') {
-      console.log('⚠️ Skipping schema push in production (should be done during deployment)');
-      return true;
-    }
-    
     // Call drizzle-kit directly to ensure --force flag is properly handled
     const pushCommand = options.force ? 'npx drizzle-kit push --force' : 'npx drizzle-kit push';
     execSync(pushCommand, { 
