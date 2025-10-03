@@ -26,7 +26,7 @@ export class GoogleOAuthService {
 
     return this.oauth2Client.generateAuthUrl({
       access_type: 'offline',
-      scope: scopes,
+      scope: scopes.join(' '), // Join scopes with space for proper URL encoding
       state: state, // Used to pass redirect URL or other state
       prompt: 'consent', // Force consent screen to get refresh token
     });
@@ -130,12 +130,17 @@ export class GoogleOAuthService {
       }
       
       if (Object.keys(updateData).length > 0) {
-        await storage.updateUser(user.id, updateData);
-        user = { ...user, ...updateData };
+        const updatedUser = await storage.updateUser(user.id, updateData);
+        user = updatedUser || user;
       }
 
       // Update last login
       await storage.updateUser(user.id, { lastLogin: new Date() });
+    }
+
+    // Ensure user exists before proceeding
+    if (!user) {
+      throw new Error('Failed to create or retrieve user');
     }
 
     // Check if user is active
