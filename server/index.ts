@@ -91,17 +91,23 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Setup database on application startup
   console.log('🚀 Starting application...');
   
-  const setupSuccess = await setupDatabase({ 
-    verbose: process.env.NODE_ENV === 'development',
-    force: process.env.NODE_ENV === 'development' // Enable force flag in development to handle constraints automatically
-  });
-  
-  if (!setupSuccess) {
-    console.error('❌ Database setup failed. Exiting...');
-    process.exit(1);
+  // In production, skip database setup - it should run during build/deployment
+  // In development, run database setup for convenience
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔧 Running database setup in development mode...');
+    const setupSuccess = await setupDatabase({ 
+      verbose: true,
+      force: true
+    });
+    
+    if (!setupSuccess) {
+      console.error('❌ Database setup failed. Exiting...');
+      process.exit(1);
+    }
+  } else {
+    console.log('⚡ Production mode: Skipping database setup (should run during build)');
   }
 
   const server = await registerRoutes(app);
