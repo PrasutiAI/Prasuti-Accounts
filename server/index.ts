@@ -3,7 +3,6 @@ import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { setupDatabase } from "../scripts/setup-database";
 import { 
   securityHeaders, 
   securityLogger, 
@@ -127,6 +126,8 @@ app.use((req, res, next) => {
   // In development, run database setup in background (non-blocking for health checks)
   if (process.env.NODE_ENV === 'development') {
     console.log('🔧 Running database setup in background (development mode)...');
+    // Use dynamic import to avoid loading setup-database module in production
+    const { setupDatabase } = await import('../scripts/setup-database');
     setupDatabase({ 
       verbose: true,
       force: true
