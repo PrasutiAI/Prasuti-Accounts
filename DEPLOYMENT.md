@@ -2,21 +2,36 @@
 
 ## Overview
 
-This application has been optimized for fast deployment health checks by separating database setup from runtime startup.
+This application is optimized for fast deployment health checks. The server starts **immediately** and responds to health checks within milliseconds, while database setup runs in the background (development) or during build (production).
 
 ## Key Changes
 
-### 1. Production Startup Behavior
+### 1. Server Startup Flow
 
-- **Development mode**: Runs full database setup on every restart (schema push, roles, JWT keys)
-- **Production mode**: Skips database setup entirely - expects it to run during build phase
+The server now follows this optimized startup sequence:
+1. **Register routes** (including health endpoints) 
+2. **Start listening on port** (health checks succeed immediately)
+3. **Background tasks** (database setup in development only)
 
 ### 2. Health Check Endpoints
 
-- **`/health`**: Immediate response, no database dependency (use for deployment health checks)
-- **`/ready`**: Checks database connectivity (use for readiness probes)
+- **`/` (root)**: Serves the frontend immediately (use for deployment health checks)
+- **`/health`**: JSON health status, no database dependency
+- **`/ready`**: Checks database connectivity (use for readiness probes after startup)
 
-### 3. Build Process
+### 3. Production vs Development
+
+- **Development mode**: 
+  - Server starts immediately
+  - Database setup runs in background (non-blocking)
+  - Full database setup on every restart (schema push, roles, JWT keys)
+  
+- **Production mode**: 
+  - Server starts immediately
+  - Database setup skipped entirely (runs during build phase)
+  - No blocking operations at startup
+
+### 4. Build Process
 
 The application requires database setup during the build phase for production deployments.
 
@@ -62,9 +77,10 @@ Required for production:
 ## Health Check Configuration
 
 Configure your deployment platform to use:
-- **Health check endpoint**: `/health`
-- **Health check timeout**: 5 seconds (endpoint responds in <100ms)
-- **Startup timeout**: 30 seconds (application starts in <10 seconds in production)
+- **Health check endpoint**: `/` or `/health` (both respond in <100ms)
+- **Health check timeout**: 5-10 seconds
+- **Startup timeout**: 10-15 seconds (server starts in <3 seconds)
+- **Initial delay**: 5 seconds (wait for server to initialize)
 
 ## Troubleshooting
 

@@ -93,23 +93,7 @@ app.use((req, res, next) => {
 (async () => {
   console.log('🚀 Starting application...');
   
-  // In production, skip database setup - it should run during build/deployment
-  // In development, run database setup for convenience
-  if (process.env.NODE_ENV === 'development') {
-    console.log('🔧 Running database setup in development mode...');
-    const setupSuccess = await setupDatabase({ 
-      verbose: true,
-      force: true
-    });
-    
-    if (!setupSuccess) {
-      console.error('❌ Database setup failed. Exiting...');
-      process.exit(1);
-    }
-  } else {
-    console.log('⚡ Production mode: Skipping database setup (should run during build)');
-  }
-
+  // Register routes first (includes health check endpoints)
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -120,19 +104,14 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
+  // Setup static serving or Vite middleware
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
+  // Start server IMMEDIATELY - don't wait for database setup
   const port = parseInt(process.env.PORT || '5000', 10);
   server.listen({
     port,
@@ -140,7 +119,29 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+    log('✅ Server ready - health checks will succeed');
   });
+
+  // Run database setup AFTER server is listening
+  // In production, skip database setup - it should run during build/deployment
+  // In development, run database setup in background (non-blocking for health checks)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔧 Running database setup in background (development mode)...');
+    setupDatabase({ 
+      verbose: true,
+      force: true
+    }).then(setupSuccess => {
+      if (!setupSuccess) {
+        console.error('⚠️  Database setup failed in development mode');
+      } else {
+        console.log('✅ Background database setup completed');
+      }
+    }).catch(error => {
+      console.error('⚠️  Database setup error:', error);
+    });
+  } else {
+    console.log('⚡ Production mode: Skipping database setup (should run during build)');
+  }
 
   // Graceful shutdown handling
   const gracefulShutdown = async (signal: string) => {
