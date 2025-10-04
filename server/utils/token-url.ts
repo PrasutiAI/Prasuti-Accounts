@@ -30,22 +30,22 @@ export function appendTokensToUrl(
 
   try {
     const urlObj = new URL(validation.normalizedUrl);
-    const fragmentParams = new URLSearchParams();
+    
+    // Get existing query parameters
+    const queryParams = new URLSearchParams(urlObj.search);
 
-    // Add access token to URL fragment if provided (more secure than query params)
+    // Add access token to query parameters
     if (tokens.accessToken) {
-      fragmentParams.set('access_token', tokens.accessToken);
+      queryParams.set('access_token', tokens.accessToken);
     }
 
     // Add refresh token only if explicitly requested and provided
     if (tokens.includeRefreshToken && tokens.refreshToken) {
-      fragmentParams.set('refresh_token', tokens.refreshToken);
+      queryParams.set('refresh_token', tokens.refreshToken);
     }
 
-    // Only add fragment if we have tokens to add
-    if (fragmentParams.toString()) {
-      urlObj.hash = fragmentParams.toString();
-    }
+    // Update URL with query parameters
+    urlObj.search = queryParams.toString();
 
     return urlObj.toString();
   } catch (error) {
