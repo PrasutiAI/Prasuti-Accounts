@@ -98,7 +98,11 @@ idm_failed_logins_24h ${failedLogins.count}
       const jwks = await jwtService.getJwksResponse();
       res.json(jwks);
     } catch (error) {
-      res.status(500).json({ message: 'Failed to retrieve JWKS' });
+      console.error('JWKS endpoint error:', error);
+      res.status(500).json({ 
+        message: 'Failed to retrieve JWKS',
+        error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
+      });
     }
   });
 

@@ -115,21 +115,31 @@ export class JwtService {
 
     const jwksKeys = await Promise.all(
       activeKeys.map(async (key) => {
-        const publicKey = createPublicKey(key.publicKey);
-        const keyObject = publicKey.asymmetricKeyDetails as any;
-        
-        if (!keyObject || !keyObject.n || !keyObject.e) {
-          throw new Error(`Invalid public key format for kid: ${key.kid}`);
-        }
+        try {
+          const publicKey = createPublicKey(key.publicKey);
+          
+          // Export as JWK format which gives us n and e directly
+          const jwk = publicKey.export({ format: 'jwk' }) as any;
+          
+          console.log(`Exported JWK for ${key.kid}:`, jwk);
+          
+          if (!jwk.n || !jwk.e) {
+            console.error(`Missing RSA components. JWK keys:`, Object.keys(jwk));
+            throw new Error(`Missing RSA components for kid: ${key.kid}`);
+          }
 
-        return {
-          kty: 'RSA',
-          use: 'sig',
-          kid: key.kid,
-          alg: key.algorithm,
-          n: (keyObject.n as Buffer).toString('base64url'),
-          e: (keyObject.e as Buffer).toString('base64url'),
-        };
+          return {
+            kty: 'RSA',
+            use: 'sig',
+            kid: key.kid,
+            alg: key.algorithm,
+            n: jwk.n,
+            e: jwk.e,
+          };
+        } catch (error) {
+          console.error(`Error processing key ${key.kid}:`, error);
+          throw error;
+        }
       })
     );
 
