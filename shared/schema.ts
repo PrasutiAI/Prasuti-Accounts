@@ -335,6 +335,7 @@ export const loginSchema = z.object({
     }, "Please enter a valid email address or phone number"),
   password: z.string().min(1, "Password is required"),
   mfaCode: z.string().optional(),
+  redirectUrl: z.string().url().optional(),
 });
 
 // Registration schema excludes roleId since it's assigned automatically by AuthService
