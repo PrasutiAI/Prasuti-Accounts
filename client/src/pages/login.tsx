@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { Shield } from "lucide-react";
-import { SiGoogle } from "react-icons/si";
+import { SiGoogle, SiLinkedin } from "react-icons/si";
 import { apiRequest } from "@/lib/queryClient";
 import { loginSchema, type LoginRequest } from "@shared/schema";
 
@@ -361,7 +361,7 @@ export default function Login() {
               </div>
             </div>
             
-            <div className="mt-6">
+            <div className="mt-6 space-y-3">
               <Button
                 type="button"
                 variant="outline"
@@ -375,6 +375,21 @@ export default function Login() {
               >
                 <SiGoogle className="w-5 h-5 mr-3" />
                 Sign in with Google
+              </Button>
+              
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-12 text-base font-medium border-border/60 hover:bg-accent/50 hover:border-border transition-all duration-300"
+                onClick={() => {
+                  const baseUrl = '/api/auth/linkedin';
+                  const redirectParam = redirectUrl ? `?redirectUrl=${encodeURIComponent(redirectUrl)}` : '';
+                  window.location.href = baseUrl + redirectParam;
+                }}
+                data-testid="button-linkedin-login"
+              >
+                <SiLinkedin className="w-5 h-5 mr-3" />
+                Sign in with LinkedIn
               </Button>
             </div>
           </div>

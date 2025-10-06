@@ -9,7 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Shield, UserPlus } from "lucide-react";
-import { SiGoogle } from "react-icons/si";
+import { SiGoogle, SiLinkedin } from "react-icons/si";
 import { apiRequest } from "@/lib/queryClient";
 import { registerSchema as sharedRegisterSchema } from "@shared/schema";
 import { useEffect, useState } from "react";
@@ -284,7 +284,7 @@ export default function Register() {
               </div>
             </div>
             
-            <div className="mt-6">
+            <div className="mt-6 space-y-3">
               <Button
                 type="button"
                 variant="outline"
@@ -298,6 +298,21 @@ export default function Register() {
               >
                 <SiGoogle className="w-5 h-5 mr-3" />
                 Sign up with Google
+              </Button>
+              
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-12 text-base font-medium border-border/60 hover:bg-accent/50 hover:border-border transition-all duration-300"
+                onClick={() => {
+                  const baseUrl = '/api/auth/linkedin';
+                  const redirectParam = redirectUrl ? `?redirectUrl=${encodeURIComponent(redirectUrl)}` : '';
+                  window.location.href = baseUrl + redirectParam;
+                }}
+                data-testid="button-linkedin-register"
+              >
+                <SiLinkedin className="w-5 h-5 mr-3" />
+                Sign up with LinkedIn
               </Button>
             </div>
           </div>

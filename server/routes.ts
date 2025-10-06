@@ -12,6 +12,7 @@ import { validateBody, validateQuery, validateParams, commonSchemas } from "./ut
 import { validateRedirectUrl } from "./utils/domain-validation";
 import { appendTokensToUrl } from "./utils/token-url";
 import { googleOAuthService } from "./services/google-oauth.service";
+import { linkedInOAuthService } from "./services/linkedin-oauth.service";
 import { authenticateToken, requireRole, requirePermissions, optionalAuth, rateLimit } from "./middleware/auth.middleware";
 import { 
   authRateLimit, 
@@ -453,6 +454,96 @@ idm_failed_logins_24h ${failedLogins.count}
         }
       } catch (error) {
         console.error('Google OAuth callback error:', error);
+        res.redirect(`/login?error=${encodeURIComponent('OAuth authentication failed')}`);
+      }
+    }
+  );
+
+  // LinkedIn OAuth routes
+  authRouter.get('/linkedin',
+    apiRateLimit,
+    async (req, res) => {
+      try {
+        const redirectUrl = req.query.redirectUrl as string;
+        const state = redirectUrl ? Buffer.from(JSON.stringify({ redirectUrl })).toString('base64') : undefined;
+        
+        const authUrl = linkedInOAuthService.getAuthUrl(state);
+        res.redirect(authUrl);
+      } catch (error) {
+        res.status(500).json({ message: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  );
+
+  authRouter.get('/linkedin/callback',
+    apiRateLimit,
+    async (req, res) => {
+      try {
+        const { code, state } = req.query;
+        
+        if (!code) {
+          return res.status(400).json({ message: 'Authorization code is required' });
+        }
+
+        // Handle OAuth callback
+        const result = await linkedInOAuthService.handleOAuthCallback(
+          code as string,
+          req.ip,
+          req.headers['user-agent']
+        );
+
+        // Parse state to get redirect URL
+        let redirectUrl = '/dashboard'; // Default redirect
+        if (state) {
+          try {
+            const stateData = JSON.parse(Buffer.from(state as string, 'base64').toString());
+            if (stateData.redirectUrl) {
+              // Validate redirect URL
+              const allowedDomains = await storage.getActiveAllowedDomains();
+              const validation = validateRedirectUrl(stateData.redirectUrl, allowedDomains);
+              if (validation.isValid && validation.normalizedUrl) {
+                // Append tokens to allowed domain URLs
+                redirectUrl = appendTokensToUrl(validation.normalizedUrl, allowedDomains, {
+                  accessToken: result.accessToken,
+                  refreshToken: result.refreshToken,
+                  includeRefreshToken: false
+                });
+              }
+            }
+          } catch (error) {
+            // Invalid state, use default redirect
+            console.warn('Invalid OAuth state:', error);
+          }
+        }
+
+        // For same-origin redirects, store tokens and redirect
+        try {
+          const redirectUrlObj = new URL(redirectUrl);
+          const currentOrigin = req.get('origin') || `${req.protocol}://${req.get('host')}`;
+          
+          if (redirectUrlObj.origin === currentOrigin) {
+            // Same-origin: redirect to a page that will handle token storage
+            const params = new URLSearchParams({
+              access_token: result.accessToken,
+              refresh_token: result.refreshToken,
+              redirect: redirectUrl
+            });
+            res.redirect(`/oauth/success?${params.toString()}`);
+          } else {
+            // Cross-origin: redirect with tokens in URL fragment
+            res.redirect(redirectUrl);
+          }
+        } catch (error) {
+          // If URL parsing fails, treat as same-origin
+          const params = new URLSearchParams({
+            access_token: result.accessToken,
+            refresh_token: result.refreshToken,
+            redirect: redirectUrl
+          });
+          res.redirect(`/oauth/success?${params.toString()}`);
+        }
+      } catch (error) {
+        console.error('LinkedIn OAuth callback error:', error);
         res.redirect(`/login?error=${encodeURIComponent('OAuth authentication failed')}`);
       }
     }

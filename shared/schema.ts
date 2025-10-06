@@ -19,6 +19,7 @@ export const users = pgTable("users", {
   isActive: boolean("is_active").notNull().default(true),
   mfaSecretEncrypted: text("mfa_secret_encrypted"), // Encrypted at rest for security
   googleId: text("google_id"), // Google OAuth user ID
+  linkedInId: text("linkedin_id"), // LinkedIn OAuth user ID
   profilePicture: text("profile_picture"), // Profile picture URL
   lastLogin: timestamp("last_login"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
