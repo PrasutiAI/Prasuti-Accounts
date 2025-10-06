@@ -18,6 +18,7 @@ import Roles from "@/pages/roles";
 import ApiKeys from "@/pages/api-keys";
 import MFA from "@/pages/mfa";
 import Audit from "@/pages/audit";
+import BulkUpload from "@/pages/bulk-upload";
 import NotFound from "@/pages/not-found";
 import { AuthProvider } from "@/hooks/use-auth";
 import { PermissionProvider } from "@/hooks/use-permissions";
@@ -94,6 +95,14 @@ function Router() {
           requiredPermissions={['audit:read']}
         >
           <Audit />
+        </ProtectedRoute>
+      )} />
+      
+      <Route path="/bulk-upload" component={() => (
+        <ProtectedRoute 
+          requiredRoles="admin"
+        >
+          <BulkUpload />
         </ProtectedRoute>
       )} />
       

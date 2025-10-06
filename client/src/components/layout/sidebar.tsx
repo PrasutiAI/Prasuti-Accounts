@@ -10,7 +10,8 @@ import {
   Link as LinkIcon, 
   History, 
   Settings,
-  HelpCircle
+  HelpCircle,
+  Upload
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ProtectedComponent from "@/components/auth/ProtectedComponent";
@@ -38,6 +39,14 @@ const navigation = [
     id: "users",
     roles: ['admin', 'developer'],
     permissions: ['users:read']
+  },
+  { 
+    name: "Bulk Upload", 
+    href: "/bulk-upload", 
+    icon: Upload, 
+    id: "bulk-upload",
+    roles: ['admin'],
+    permissions: []
   },
   { 
     name: "Roles & Permissions", 
