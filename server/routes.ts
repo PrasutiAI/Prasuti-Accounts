@@ -173,6 +173,7 @@ idm_failed_logins_24h ${failedLogins.count}
           refreshToken: result.refreshToken,
           user: result.user,
           redirectUrl: redirectUrlWithTokens,
+          requirePasswordChange: result.requirePasswordChange,
         });
       } catch (error) {
         res.status(401).json({ message: error instanceof Error ? error.message : String(error) });

@@ -81,6 +81,7 @@ export class AuthService {
     user: Omit<User, 'passwordHash'>;
     accessToken: string;
     refreshToken: string;
+    requirePasswordChange?: boolean;
   }> {
     // Determine if identifier is email or phone number
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -166,7 +167,12 @@ export class AuthService {
     });
 
     const { passwordHash: _, mfaSecretEncrypted: __, ...userWithoutSensitiveData } = user;
-    return { user: userWithoutSensitiveData as any, accessToken, refreshToken };
+    return { 
+      user: userWithoutSensitiveData as any, 
+      accessToken, 
+      refreshToken,
+      requirePasswordChange: user.requirePasswordChange || false
+    };
   }
 
   async logout(refreshToken: string, userId?: string): Promise<void> {
