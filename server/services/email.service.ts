@@ -19,6 +19,14 @@ interface PasswordResetEmailData {
   resetUrl: string;
 }
 
+interface WelcomeEmailData {
+  to: string;
+  name: string;
+  email: string;
+  password: string;
+  loginUrl: string;
+}
+
 class EmailService {
   private transporter: nodemailer.Transporter | null = null;
   private isConfigured = false;
@@ -311,6 +319,161 @@ The Prasuti.AI Team
         </div>
         
         <p>For your security, this link can only be used once. If you need to reset your password again, please make a new request.</p>
+    </div>
+    
+    <div class="footer">
+        <p>Best regards,<br>The Prasuti.AI Team</p>
+        <p><small>This is an automated message. Please do not reply to this email.</small></p>
+    </div>
+</body>
+</html>
+    `.trim();
+
+    return this.sendEmail({
+      to: data.to,
+      subject,
+      text,
+      html
+    });
+  }
+
+  async sendWelcomeEmail(data: WelcomeEmailData): Promise<boolean> {
+    const subject = 'Welcome to Prasuti.AI - Your Account Credentials';
+    
+    const text = `
+Hello ${data.name},
+
+Welcome to Prasuti.AI! Your account has been created successfully.
+
+Your Login Credentials:
+Email: ${data.email}
+Password: ${data.password}
+
+Login URL: ${data.loginUrl}
+
+IMPORTANT: For security reasons, you will be required to change this password on your first login.
+
+Please keep these credentials secure and do not share them with anyone.
+
+Best regards,
+The Prasuti.AI Team
+    `.trim();
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Welcome to Prasuti.AI</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 2px solid #f0f0f0;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2563eb;
+        }
+        .content {
+            padding: 20px 0;
+        }
+        .credentials-box {
+            background: #f8f9fa;
+            border-left: 4px solid #2563eb;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .credentials-box .credential-item {
+            margin: 10px 0;
+        }
+        .credentials-box .credential-label {
+            font-weight: 600;
+            color: #666;
+        }
+        .credentials-box .credential-value {
+            font-family: monospace;
+            color: #2563eb;
+            background: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-top: 5px;
+        }
+        .button {
+            display: inline-block;
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: white !important;
+            padding: 12px 30px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            margin: 20px 0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #f0f0f0;
+            font-size: 14px;
+            color: #666;
+        }
+        .security-note {
+            background: #fef2f2;
+            border-left: 4px solid #dc2626;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">🛡️ Prasuti.AI</div>
+    </div>
+    
+    <div class="content">
+        <h1>Welcome to Prasuti.AI!</h1>
+        
+        <p>Hello <strong>${data.name}</strong>,</p>
+        
+        <p>Your account has been created successfully. Below are your login credentials:</p>
+        
+        <div class="credentials-box">
+            <div class="credential-item">
+                <div class="credential-label">Email Address:</div>
+                <div class="credential-value">${data.email}</div>
+            </div>
+            <div class="credential-item">
+                <div class="credential-label">Temporary Password:</div>
+                <div class="credential-value">${data.password}</div>
+            </div>
+        </div>
+        
+        <center>
+            <a href="${data.loginUrl}" class="button">Login to Your Account</a>
+        </center>
+        
+        <p>Or copy and paste this link into your browser:</p>
+        <p style="word-break: break-all; color: #2563eb;">${data.loginUrl}</p>
+        
+        <div class="security-note">
+            <strong>🔒 Security Notice:</strong> For your security, you will be required to change this password on your first login. Please keep these credentials secure and do not share them with anyone.
+        </div>
+        
+        <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
     </div>
     
     <div class="footer">
