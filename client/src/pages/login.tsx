@@ -269,7 +269,7 @@ export default function Login() {
           <div className="space-y-3">
             <CardTitle className="text-3xl font-bold text-foreground">Welcome back</CardTitle>
             <CardDescription className="text-base text-muted-foreground/80 font-medium">
-              Sign in to your Prasuti.AI Hub account
+              Sign in to your Prasuti.AI account
             </CardDescription>
           </div>
         </CardHeader>
