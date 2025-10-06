@@ -9,6 +9,7 @@ import Login from "@/pages/login";
 import Register from "@/pages/register";
 import ForgotPassword from "@/pages/forgot-password";
 import ResetPassword from "@/pages/reset-password";
+import ForcePasswordChange from "@/pages/force-password-change";
 import VerifyEmail from "@/pages/verify-email";
 import OAuthSuccess from "@/pages/oauth-success";
 import Users from "@/pages/users";
@@ -41,6 +42,7 @@ function Router() {
       <Route path="/register" component={Register} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
+      <Route path="/force-password-change" component={ForcePasswordChange} />
       <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/oauth/success" component={OAuthSuccess} />
       

@@ -161,6 +161,16 @@ export default function Login() {
       localStorage.setItem('accessToken', data.accessToken);
       localStorage.setItem('refreshToken', data.refreshToken);
       
+      // Check if password change is required
+      if (data.requirePasswordChange) {
+        toast({
+          title: "Password change required",
+          description: "You must change your temporary password before continuing.",
+        });
+        setLocation('/force-password-change');
+        return;
+      }
+      
       toast({
         title: "Login successful",
         description: `Welcome back, ${data.user.name}!`,

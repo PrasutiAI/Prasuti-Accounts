@@ -367,8 +367,11 @@ export class AuthService {
     // Hash new password
     const passwordHash = await bcrypt.hash(newPassword, this.saltRounds);
 
-    // Update password
-    await storage.updateUser(userId, { passwordHash });
+    // Update password and clear requirePasswordChange flag
+    await storage.updateUser(userId, { 
+      passwordHash,
+      requirePasswordChange: false
+    });
 
     // Revoke all user sessions except current one (user can revoke all if they want)
     // await storage.revokeUserSessions(userId);
