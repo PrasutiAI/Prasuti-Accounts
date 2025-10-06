@@ -142,7 +142,7 @@ export class LinkedInOAuthService {
         password: '',
         phoneNumber: '',
         roleId: defaultRole.id,
-        isEmailVerified: userInfo.email_verified || true,
+        isEmailVerified: userInfo.email_verified ?? false,
         linkedInId: userInfo.sub,
         profilePicture: userInfo.picture,
       });
