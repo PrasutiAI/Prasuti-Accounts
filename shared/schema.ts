@@ -21,6 +21,7 @@ export const users = pgTable("users", {
   googleId: text("google_id"), // Google OAuth user ID
   linkedInId: text("linkedin_id"), // LinkedIn OAuth user ID
   profilePicture: text("profile_picture"), // Profile picture URL
+  requirePasswordChange: boolean("require_password_change").notNull().default(false), // Force password change on first login
   lastLogin: timestamp("last_login"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
