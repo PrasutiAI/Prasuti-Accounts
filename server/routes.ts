@@ -890,6 +890,157 @@ idm_failed_logins_24h ${failedLogins.count}
     }
   );
 
+  adminRouter.post('/bulk-upload',
+    authenticateToken,
+    heavyApiRateLimit,
+    requireRole('admin'), // Only admins can bulk upload
+    async (req, res) => {
+      try {
+        const { csvData } = req.body;
+        
+        if (!csvData || typeof csvData !== 'string') {
+          return res.status(400).json({ message: 'CSV data is required' });
+        }
+
+        // CSV parser function that handles quoted fields
+        const parseCSVLine = (line: string): string[] => {
+          const result: string[] = [];
+          let current = '';
+          let inQuotes = false;
+          
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            const nextChar = line[i + 1];
+            
+            if (char === '"' && nextChar === '"' && inQuotes) {
+              current += '"';
+              i++; // Skip next quote
+            } else if (char === '"') {
+              inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+              result.push(current.trim());
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          result.push(current.trim());
+          return result;
+        };
+
+        // Parse CSV data
+        const lines = csvData.trim().split('\n').filter(line => line.trim());
+        if (lines.length < 2) {
+          return res.status(400).json({ message: 'CSV must contain at least a header and one data row' });
+        }
+
+        // Parse header
+        const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase());
+        const emailIdx = headers.indexOf('email');
+        const nameIdx = headers.indexOf('name');
+        const phoneIdx = headers.indexOf('phone') !== -1 ? headers.indexOf('phone') : headers.indexOf('phonenumber');
+
+        if (emailIdx === -1 || nameIdx === -1) {
+          return res.status(400).json({ message: 'CSV must contain email and name columns' });
+        }
+
+        // Get default user role
+        const defaultRole = await storage.getRoleByName('user');
+        if (!defaultRole) {
+          return res.status(500).json({ message: 'Default user role not found' });
+        }
+
+        const results: Array<{ email: string; status: string; password?: string; error?: string }> = [];
+        const baseUrl = process.env.APP_URL || process.env.VITE_APP_URL || 'http://localhost:5000';
+        const loginUrl = `${baseUrl}/login`;
+
+        // Process each user
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue; // Skip empty lines
+
+          const values = parseCSVLine(line);
+          const email = values[emailIdx]?.toLowerCase().trim();
+          const name = values[nameIdx]?.trim();
+          const phoneNumber = phoneIdx !== -1 ? values[phoneIdx]?.trim() : undefined;
+
+          if (!email || !name) {
+            results.push({ email: email || 'unknown', status: 'failed', error: 'Missing email or name' });
+            continue;
+          }
+
+          // Check if user already exists
+          const existingUser = await storage.getUserByEmail(email);
+          if (existingUser) {
+            results.push({ email, status: 'skipped', error: 'User already exists' });
+            continue;
+          }
+
+          // Generate random password
+          const password = cryptoUtils.generateApiKey().substring(0, 16); // Use first 16 chars of API key for password
+
+          try {
+            // Create user with requirePasswordChange flag
+            await storage.createUser({
+              email,
+              name,
+              password,
+              phoneNumber,
+              roleId: defaultRole.id,
+              isEmailVerified: true, // Auto-verify bulk uploaded users
+              requirePasswordChange: true, // Force password change on first login
+            });
+
+            // Send welcome email
+            const { emailService } = await import('./services/email.service');
+            await emailService.sendWelcomeEmail({
+              to: email,
+              name,
+              email,
+              password,
+              loginUrl,
+            });
+
+            results.push({ email, status: 'success', password });
+          } catch (error) {
+            results.push({ 
+              email, 
+              status: 'failed', 
+              error: error instanceof Error ? error.message : 'Unknown error' 
+            });
+          }
+        }
+
+        // Log audit event
+        await auditService.log({
+          actorId: req.user?.id,
+          action: 'user_create',
+          resource: 'bulk_upload',
+          metadata: { 
+            totalUsers: lines.length - 1,
+            successful: results.filter(r => r.status === 'success').length,
+            failed: results.filter(r => r.status === 'failed').length,
+            skipped: results.filter(r => r.status === 'skipped').length,
+          },
+          success: true,
+        });
+
+        res.json({ 
+          message: 'Bulk upload completed',
+          results,
+          summary: {
+            total: results.length,
+            successful: results.filter(r => r.status === 'success').length,
+            failed: results.filter(r => r.status === 'failed').length,
+            skipped: results.filter(r => r.status === 'skipped').length,
+          }
+        });
+      } catch (error) {
+        res.status(500).json({ message: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  );
+
   app.use('/api/admin', adminRouter);
 
   // MFA routes
