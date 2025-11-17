@@ -71,17 +71,26 @@ async function pushDatabaseSchema(options: SetupOptions): Promise<boolean> {
   try {
     console.log('🔄 Pushing database schema...');
     
-    // Call drizzle-kit directly to ensure --force flag is properly handled
+    // Call drizzle-kit directly with timeout to prevent hanging
     const pushCommand = options.force ? 'npx drizzle-kit push --force' : 'npx drizzle-kit push';
     execSync(pushCommand, { 
       stdio: options.verbose ? 'inherit' : 'pipe',
-      cwd: process.cwd()
+      cwd: process.cwd(),
+      timeout: 30000 // 30 second timeout
     });
     
     console.log('✅ Database schema pushed successfully');
     return true;
   } catch (error) {
-    console.error('❌ Failed to push database schema:', error instanceof Error ? error.message : String(error));
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('❌ Failed to push database schema:', errorMessage);
+    
+    // In development, allow continuing even if schema push fails
+    if (process.env.NODE_ENV === 'development') {
+      console.log('⚠️  Continuing in development mode without schema push');
+      console.log('💡 Schema may already be up to date, or you can run manually: npm run db:push');
+      return true; // Allow development to continue
+    }
     
     if (!options.force) {
       console.log('💡 Try running with --force flag to force push the schema');

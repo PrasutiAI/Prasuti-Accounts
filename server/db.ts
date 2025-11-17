@@ -16,7 +16,17 @@ function initializeDatabase() {
   }
 
   if (!_pool) {
-    _pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    _pool = new Pool({ 
+      connectionString: process.env.DATABASE_URL,
+      connectionTimeoutMillis: 30000,
+      idleTimeoutMillis: 30000,
+      max: 10,
+    });
+    
+    // Configure Neon to handle auto-suspend endpoints
+    neonConfig.fetchConnectionCache = true;
+    neonConfig.pipelineConnect = false;
+    
     _db = drizzle({ client: _pool, schema });
   }
 

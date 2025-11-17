@@ -1,0 +1,101 @@
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+at async file:///home/runner/workspace/dist/index.js:3592:24 {
+
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+at async GoogleOAuthService.handleOAuthCallback (file:///home/runner/workspace/dist/index.js:2745:16)
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+line: undefined,
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+}
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+length: 88,
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+internalQuery: undefined,
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+file: undefined,
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+severity: 'ERROR',
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+at async NeonPreparedQuery.execute (file:///home/runner/workspace/node_modules/drizzle-orm/neon-serverless/session.js:76:20)
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+code: 'XX000',
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+at async DatabaseStorage.getUserByEmail (file:///home/runner/workspace/dist/index.js:547:24)
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+position: undefined,
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+internalPosition: undefined,
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+at file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1345:74
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+routine: undefined
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+dataType: undefined,
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+table: undefined,
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+schema: undefined,
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+where: undefined,
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+hint: undefined,
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+constraint: undefined,
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+column: undefined,
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+detail: undefined,
+2025-11-17 05:21:53.71
+cc6bbbc3
+User
+Google OAuth callback error: error: The endpoint has been disabled. Enable it using Neon API and retry.
